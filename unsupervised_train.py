@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import sys
 import data_sampling.data_args as data_args
-from nets.alexnet import AlexNet
+from nets.two_stream import AlexNet
 import constants as const
 import file_constants as file_const
 from data_sampling.tuple_loader import  TupleLoader
