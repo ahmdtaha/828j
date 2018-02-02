@@ -72,12 +72,12 @@ if __name__ == '__main__':
         files_list = utils.txt_read(os.path.join(dataset_path+'_lists','trainlist.txt'))
         print('**** Train has ', len(files_list))
         save_dir = os.path.join(save_dir,'train')
-        max_num_tuplex = 200000
+        max_num_tuplex = 30 ##200000
     elif(current_subset == const.Subset.VAL.value):
         files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'vallist.txt'))
         print('**** Val has ', len(files_list))
         save_dir = os.path.join(save_dir, 'val')
-        max_num_tuplex = 20000
+        max_num_tuplex =  15 ##
     elif(current_subset == const.Subset.TEST.value):
         files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'testlist.txt'))
         print('*** Test has ', len(files_list))
@@ -87,10 +87,9 @@ if __name__ == '__main__':
     utils.touch_dir(save_dir)
     tuple_idx = 0
     tuple_idx = utils.last_tuple_idx(save_dir)
-    #activity_list = ['Biking']
     activity_list = sorted(utils.get_dirs(dataset_path));
     print('activity_list ',len(activity_list),activity_list)
-    #activity_list = ['Play_with_ball','Car','Drink','Feed','Look_at_Left','Look_at_Right','Pet','Shake','Sniff','Walk']
+
     lbls_file = os.path.join(save_dir,'lbl.pkl')
 
     if(tuple_idx == 0):
