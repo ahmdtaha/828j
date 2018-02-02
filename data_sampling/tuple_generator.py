@@ -1,15 +1,12 @@
 import sys
-sys.path.append('../../')
+sys.path.append('../')
 import utils
-import data_sampling.motion_aware as motion_aware
 import os
 import cv2
-import imageio
 import constants as const
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 def create_stack_diff(vid,stack_diff_frame_idz):
 
@@ -62,11 +59,18 @@ if __name__ == '__main__':
 
     files_list = None
 
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('--is_training', action='store_true')
+
+    args = parser.parse_args()
+
     ## Take one arg to indicate train or val. Train 0, Val 1
-    if(len(sys.argv) == 2):
-        current_subset = int(sys.argv[1])
+    if(args.is_training):
+        current_subset = 0 ## Train
     else:
-        current_subset = 0
+        current_subset = 1 ## Val
 
     if(current_subset == const.Subset.TRAIN.value):
         files_list = utils.txt_read(os.path.join(dataset_path+'_lists','trainlist.txt'))
