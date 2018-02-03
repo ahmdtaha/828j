@@ -180,7 +180,7 @@ class TupleLoader:
             try:
                 found = False
                 while not found:
-                    if (os.path.exists(file_const.data_path + '/'+subset_name+'/frame' + '%07d' % (tuple[batch_idx]) + '.jpg')):
+                    if (os.path.exists(self._tuples_path + '/'+subset_name+'/frame' + '%07d' % (tuple[batch_idx]) + '.jpg')):
                         labels[batch_idx] = class_lbls[tuple[batch_idx]];
                         words[batch_idx, :, :] = self.img_at_index(tuple[batch_idx], subset_name)
                         contexts[batch_idx, :, :] = self.pkl_at_index(tuple[batch_idx], subset_name)

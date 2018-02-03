@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import sys
 import data_sampling.data_args as data_args
-from nets.two_stream import AlexNet
+from nets.two_stream import TwoStreamNet
 import constants as const
 import file_constants as file_const
 from data_sampling.tuple_loader import TupleLoader
@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
 
 
-    img2vec_model = AlexNet(supervised=True,train_alexnet=True)
+    img2vec_model = TwoStreamNet(supervised=True,train_alexnet=True)
     model_loss = img2vec_model.supervised_loss
     model_accuracy = img2vec_model.supervised_accuracy
 

@@ -4,7 +4,7 @@ import constants as const
 import file_constants as file_const
 from tensorflow.python import pywrap_tensorflow
 
-class AlexNet:
+class TwoStreamNet:
     def conv(self,input, kernel, biases, k_h, k_w, c_o, s_h, s_w, padding="VALID", group=1):
         '''From https://github.com/ethereon/caffe-tensorflow
         '''
@@ -165,11 +165,12 @@ class AlexNet:
             maxpool5 = tf.nn.max_pool(conv5, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
 
         with tf.variable_scope(prefix+"fc6"):
+            fc6_num_units = 128
             # fc6
             # fc6W = tf.Variable(net_data["fc6"][0])
             # fc6b = tf.Variable(net_data["fc6"][1])
-            fc6W = tf.get_variable(name='fc6W',shape=net_data["fc6"][0].shape,trainable=trainable_params)
-            fc6b = tf.get_variable(name='fc6b', shape=net_data["fc6"][1].shape, trainable=trainable_params)
+            fc6W = tf.get_variable(name='fc6W',shape=(9216, fc6_num_units),trainable=trainable_params)
+            fc6b = tf.get_variable(name='fc6b', shape=(fc6_num_units,), trainable=trainable_params)
 
 
             fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(np.prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
@@ -180,21 +181,21 @@ class AlexNet:
         # fc7b = tf.Variable(net_data["fc7"][1])
         #print('fc6 shapes => ', net_data["fc6"][0].shape, net_data["fc6"][1].shape)
         #print('fc shapes => ' ,net_data["fc7"][0].shape,net_data["fc7"][1].shape)
-        with tf.variable_scope(prefix+"fc7"):
-            fc7W = tf.get_variable(name='fc7W',shape=net_data["fc7"][0].shape,trainable=trainable_params)
-            fc7b = tf.get_variable(name='fc7b',shape=net_data["fc7"][1].shape,trainable=trainable_params)
-
-
-            fc7 = tf.nn.relu_layer(fc6, fc7W, fc7b)
-
-        with tf.variable_scope(prefix+"fc8"):
-            # fc8
-            # fc(1000, relu=False, name='fc8')
-            # fc8W = tf.Variable(net_data["fc8"][0])
-            # fc8b = tf.Variable(net_data["fc8"][1])
-            fc8W = tf.get_variable(name='fc8W',shape=net_data["fc8"][0].shape,trainable=trainable_params)
-            fc8b = tf.get_variable(name='fc8b',shape=net_data["fc8"][1].shape,trainable=trainable_params)
-            fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
+        # with tf.variable_scope(prefix+"fc7"):
+        #     fc7W = tf.get_variable(name='fc7W',shape=net_data["fc7"][0].shape,trainable=trainable_params)
+        #     fc7b = tf.get_variable(name='fc7b',shape=net_data["fc7"][1].shape,trainable=trainable_params)
+        #
+        #
+        #     fc7 = tf.nn.relu_layer(fc6, fc7W, fc7b)
+        #
+        # with tf.variable_scope(prefix+"fc8"):
+        #     # fc8
+        #     # fc(1000, relu=False, name='fc8')
+        #     # fc8W = tf.Variable(net_data["fc8"][0])
+        #     # fc8b = tf.Variable(net_data["fc8"][1])
+        #     fc8W = tf.get_variable(name='fc8W',shape=net_data["fc8"][0].shape,trainable=trainable_params)
+        #     fc8b = tf.get_variable(name='fc8b',shape=net_data["fc8"][1].shape,trainable=trainable_params)
+        #     fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
 
         assign_weights = False
         if assign_weights:
@@ -219,7 +220,7 @@ class AlexNet:
             self.assign_operations = assign_operations;
 
 
-        return [conv1,conv2,conv3,conv4,conv5,fc6,fc7,fc8]
+        return [conv1,conv2,conv3,conv4,conv5,fc6]
 
     def rgb_2_bgr(self,rgb):
         #rgb_scaled = rgb * 255.0
@@ -344,11 +345,11 @@ class AlexNet:
 
         with tf.variable_scope("siamese",reuse=tf.AUTO_REUSE) as scope:
             self.layers1 = self.build_net(words, net_data,train_params=train_alexnet,prefix='word_')
-            self.fcf_word_dense= self.layers1[-2]
-            fc8 = self.layers1[-1]
+            self.fcf_word_dense= self.layers1[-1]
+            #fc8 = self.layers1[-1]
 
             self.layers2 =  self.build_net(context, net_data,train_params=train_alexnet,prefix='cntxt_')
-            self.fcf_context_dense = self.layers2[-2];
+            self.fcf_context_dense = self.layers2[-1];
 
 
         #self.prob = tf.nn.softmax(fc8)
@@ -359,17 +360,18 @@ class AlexNet:
         # fv_correct_prediction = tf.cast(fv_equal, tf.float32)
         # self.fv_accuracy = tf.reduce_sum(fcf_word_dense - fcf_context_dense)
 
-        dense = tf.concat([self.fcf_word_dense, self.fcf_context_dense], 1,name='embedding')
-
+        #dense = tf.concat([self.fcf_word_dense, self.fcf_context_dense], 1,name='embedding')
+        fusion_layer = self.fcf_word_dense - self.fcf_context_dense
+        print(fusion_layer)
 
 
         ## The weights of the following FC layers are still <<<<<< OPEN QUESTION >>>>>>
 
         ## *********************** Supervised **********************##
         with tf.variable_scope("supervised_fc") as scope:
-            supervised_fc_256 = tf.layers.dense(inputs=dense, units=8192, name='supervised_fc_256', activation=tf.nn.relu,trainable=supervised);
-            supervised_fc_128 = tf.layers.dense(inputs=supervised_fc_256, units=4096, name='supervised_fc_128', activation=tf.nn.relu,trainable=supervised);
-            supervised_logits = tf.layers.dense(inputs=supervised_fc_128, units=num_classes, name='supervised_fc',trainable=supervised)
+            supervised_fc7 = tf.layers.dense(inputs=fusion_layer, units=128, name='supervised_fc_256', activation=tf.nn.relu,trainable=supervised);
+            supervised_fc8 = tf.layers.dense(inputs=supervised_fc7, units=128, name='supervised_fc_128', activation=tf.nn.relu,trainable=supervised);
+            supervised_logits = tf.layers.dense(inputs=supervised_fc8 , units=num_classes, name='supervised_fc',trainable=supervised)
 
         with tf.variable_scope("supervised_loss") as scope:
             supervised_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.supervised_labels, logits=supervised_logits, name='xentropy')
@@ -384,17 +386,17 @@ class AlexNet:
 
         ## *********************** Unsupervised **********************##
         with tf.variable_scope("unsupervised_fc") as scope:
-            fc_256 = tf.layers.dense(inputs=dense, units=8192, name='fc_256', activation=tf.nn.relu,trainable=not supervised);
-            #fc_128 = tf.layers.dense(inputs=fc_256, units=4096, name='fc_128', activation=tf.nn.relu,trainable=not supervised);
-            logits = tf.layers.dense(inputs=fc_256, units=2, name='fc_2',trainable=not supervised)
+            unsupervised_fc7 = tf.layers.dense(inputs=fusion_layer, units=128, name='fc_256', activation=tf.nn.relu,trainable=not supervised);
+            unsupervised_fc8 = tf.layers.dense(inputs=unsupervised_fc7 , units=128, name='fc_128', activation=tf.nn.relu,trainable=not supervised);
+            unsupervised_logits = tf.layers.dense(inputs=unsupervised_fc8 , units=2, name='fc_2',trainable=not supervised)
 
         with tf.variable_scope("unsupervised_loss") as scope:
-            cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.unsupervised_labels, logits=logits, name='xentropy')
-            self.logits = tf.nn.softmax(logits)
+            cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.unsupervised_labels, logits=unsupervised_logits , name='xentropy')
+            self.logits = tf.nn.softmax(unsupervised_logits )
             self.loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
         with tf.name_scope('unsupervised_accuracy'):
-            correct_prediction = tf.equal(tf.argmax(self.unsupervised_labels, 1), tf.argmax(logits, 1))
+            correct_prediction = tf.equal(tf.argmax(self.unsupervised_labels, 1), tf.argmax(unsupervised_logits , 1))
             self.correct_prediction = tf.cast(correct_prediction, tf.float32)
             self.accuracy = tf.reduce_mean(self.correct_prediction)
 
