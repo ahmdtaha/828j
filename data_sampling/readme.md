@@ -2,7 +2,7 @@
 
 This package pre-processes the data needed during training the networks. The are three main pre-processing steps (1) motion aware sampling, (2) spatial jittering, (3) channel splitting.
 
-Despite being trivial, spatial jittering and channel splitting are not implemented yet. At the current stage, architecture verification is the main task. So fine-tuning steps are postponsed for later project stage. For motion aware sampling, [pyflow, a python lib,](https://github.com/pathak22/pyflow) is used for optical flow computation.
+Despite being trivial, spatial jittering and channel splitting are not implemented yet. At the current stage, architecture verification is the main task. So fine-tuning steps are postponsed for later project stage. For motion aware sampling, [pyflow, a Cpython lib,](https://github.com/pathak22/pyflow) is used for optical flow computation.
 
 To prepare data, the following scripts needs to be executed
 
