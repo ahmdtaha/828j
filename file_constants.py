@@ -3,7 +3,7 @@
 #data_path = '/Users/ahmedtaha/Documents/dataset/UCF50_tuples_class'
 dataset_name = 'UCF50'
 #data_path = '/Users/ahmedtaha/Documents/dataset/dogcentric_tuples_class'
-num_classes = 10
+num_classes = 50
 tensorbaord_dir = './tb/'
 model_save_path = './model/dog_66_mean'
 model_weights_filepath = '/Users/ahmedtaha/Documents/Models/bvlc_alexnet.npy'

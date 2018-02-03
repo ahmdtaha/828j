@@ -1,12 +1,16 @@
 import sys
 sys.path.append('../')
+import data_sampling.motion_aware as motion_aware
 import utils
 import os
 import cv2
 import constants as const
 import numpy as np
+import imageio
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 def create_stack_diff(vid,stack_diff_frame_idz):
 
@@ -76,12 +80,12 @@ if __name__ == '__main__':
         files_list = utils.txt_read(os.path.join(dataset_path+'_lists','trainlist.txt'))
         print('**** Train has ', len(files_list))
         save_dir = os.path.join(save_dir,'train')
-        max_num_tuplex = 30 ##200000
+        max_num_tuplex = 200 ##200000
     elif(current_subset == const.Subset.VAL.value):
         files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'vallist.txt'))
         print('**** Val has ', len(files_list))
         save_dir = os.path.join(save_dir, 'val')
-        max_num_tuplex =  15 ##
+        max_num_tuplex =  400 ## 20000
     elif(current_subset == const.Subset.TEST.value):
         files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'testlist.txt'))
         print('*** Test has ', len(files_list))

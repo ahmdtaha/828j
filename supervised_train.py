@@ -107,7 +107,8 @@ if __name__ == '__main__':
                 for class_i in range(file_const.num_classes):
                     feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, class_i, args);
                     prediction = sess.run(img2vec_model.class_prediction, feed_dict=feed_dict)
-                    bins = np.bincount(prediction,minlength=10);
+                    #bins = np.bincount(prediction,minlength=10);
+                    bins = np.histogram(prediction, np.arange(0, file_const.num_classes+1, 1))[0]
                     for j in range(file_const.num_classes):
                         f.write(str(bins[j])+'\t')
                     f.write("\n")
