@@ -38,15 +38,32 @@ def sample_high_motion_frames(vid,flow_mag,vdx_path=None,n=1):
     try:
         ## Default params
         total_num_frames = vid._meta['nframes']
+        if (total_num_frames < 60):
+            print('Video is too small',vdx_path)
+            return None, None
+
+
+        stack_diff_frame_idz = np.zeros(6, dtype=np.int32);
         trim_borders, step_btwn_frames = get_valid_frame_range(total_num_frames)
         center_frame_idx = int(np.random.choice(flow_mag.shape[0], n, p=flow_mag))
         center_frame_idx += trim_borders
-        stack_diff_frame_idz = np.zeros(6,dtype=np.int32);
-        stack_diff_frame_idz [1:3] = center_frame_idx - np.random.choice(np.arange(2 ,2 * step_btwn_frames),2,replace=False)#np.random.randint(2 ,2 * step,2,replace=False);
-        stack_diff_frame_idz[3:5] = center_frame_idx + np.random.choice(np.arange(2 ,2 * step_btwn_frames),2,replace=False) #np.random.randint(2 , 2 * step, 2);
-        stack_diff_frame_idz[0] = center_frame_idx - 2* step_btwn_frames - np.random.randint(1, step_btwn_frames);
-        stack_diff_frame_idz[5] = center_frame_idx + 2* step_btwn_frames + np.random.randint(1, step_btwn_frames);
-        stack_diff_frame_idz.sort()
+
+        ideal_sampling_space = 15; ## Just an intuition from Shuffle & Learn
+
+        left_sampling_space = min(ideal_sampling_space ,center_frame_idx //3) ## I need three frames from the left
+        right_sampling_space = min(ideal_sampling_space, (total_num_frames-center_frame_idx)// 3)  ## I need three frames from the left
+
+        current_sampling_space = min(left_sampling_space ,right_sampling_space );
+        #print('Number of frames ', total_num_frames,current_sampling_space )
+        left_ptr = center_frame_idx - current_sampling_space * 3 + current_sampling_space//2
+        for i in range(6):
+            stack_diff_frame_idz[i] = left_ptr  + i * current_sampling_space
+
+            # stack_diff_frame_idz [1:3] = center_frame_idx - np.random.choice(np.arange(3 ,2 * step_btwn_frames),2,replace=False)#np.random.randint(2 ,2 * step,2,replace=False);
+        # stack_diff_frame_idz[3:5] = center_frame_idx + np.random.choice(np.arange(3 ,2 * step_btwn_frames),2,replace=False) #np.random.randint(2 , 2 * step, 2);
+        # stack_diff_frame_idz[0] = center_frame_idx - 2* step_btwn_frames - np.random.randint(3, step_btwn_frames);
+        # stack_diff_frame_idz[5] = center_frame_idx + 2* step_btwn_frames + np.random.randint(3, step_btwn_frames);
+        # stack_diff_frame_idz.sort()
         return center_frame_idx,stack_diff_frame_idz;
     except:
         traceback.print_exc()

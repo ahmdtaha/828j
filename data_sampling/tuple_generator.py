@@ -7,8 +7,9 @@ import cv2
 import constants as const
 import numpy as np
 import imageio
+import multiprocessing as mp
+
 import matplotlib
-matplotlib.use('Agg')
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -18,20 +19,15 @@ def create_stack_diff(vid,stack_diff_frame_idz):
     if(unique_els.shape != stack_diff_frame_idz.shape):
         print("Something is wrong")
 
-    num_output_frames= len(stack_diff_frame_idz)-1;
-    stacked_diff = np.zeros((const.frame_height, const.frame_width,num_output_frames ), dtype=np.float32)
+    num_output_frames= len(stack_diff_frame_idz);
+    stacked_diff = np.zeros((const.nominal_height,const.nominal_width,const.frame_channels,num_output_frames), dtype=np.uint8)
 
     for i in range(num_output_frames):
         current_frame = vid.get_data(stack_diff_frame_idz[i])
-        current_frame = cv2.cvtColor(current_frame , cv2.COLOR_RGB2GRAY)
-        current_frame = cv2.resize(current_frame ,(const.frame_height, const.frame_width))
+        if(current_frame.shape[0] != const.nominal_height or current_frame.shape[1] != const.nominal_width):
+            current_frame = cv2.resize(current_frame, (const.nominal_width,const.nominal_height))
 
-        next_frame = vid.get_data(stack_diff_frame_idz[i+1])
-        next_frame = cv2.cvtColor(next_frame , cv2.COLOR_RGB2GRAY)
-        next_frame = cv2.resize(next_frame , (const.frame_height, const.frame_width))
-
-        diff = next_frame.astype(np.float32) - current_frame.astype(np.float32)
-        stacked_diff[:, :, i] = diff
+        stacked_diff[:, :, :,i] = current_frame
 
 
     return stacked_diff
@@ -56,6 +52,34 @@ def sample_video(dataset_path):
     print(len(files))
     current_vdx = files[sample_vdx]
     return d,current_vdx;
+
+def save_tuple(vid,center_frame_idx,stack_diff_frame_idz,save_dir,tuple_idx,lbls_ary,activity_lbl,queue=None):
+    try:
+        center_img = vid.get_data(center_frame_idx)
+        if (center_img.shape[0] != const.nominal_height or center_img.shape[1] != const.nominal_width):
+            center_img = cv2.resize(center_img, (const.nominal_height, const.nominal_width))
+
+        imageio.imwrite(save_dir + '/frame' + "%07d" % (tuple_idx) + '.jpg', center_img);
+        stack_diff = create_stack_diff(vid, stack_diff_frame_idz)
+        utils.pkl_write(save_dir + '/frame' + "%07d" % (tuple_idx) + '.pkl', stack_diff)
+
+
+
+        visualize = False
+        if (visualize):
+            for i in range(stack_diff.shape[3]):
+                cv2.imwrite(save_dir + '/frame_' + '%07d' % (tuple_idx) + '_' + str(i) + '_pkl.jpg',
+                            cv2.cvtColor(stack_diff[:, :, :, i], cv2.COLOR_RGB2BGR))
+                # plt.imshow(stack_diff[:, :, :,i]);
+                # plt.axis('off')
+                # plt.savefig(save_dir + '/frame_' + '%07d' % (tuple_idx) +'_'+ str(i)+'_pkl.jpg')
+        queue.put(True)
+    except:
+        pass
+        queue.put(False)
+        queue.put(tuple_idx)
+
+
 if __name__ == '__main__':
     dataset_path = utils.get_dataset_path('UCF50')
     pkls_path = dataset_path+'_pkls'
@@ -80,12 +104,12 @@ if __name__ == '__main__':
         files_list = utils.txt_read(os.path.join(dataset_path+'_lists','trainlist.txt'))
         print('**** Train has ', len(files_list))
         save_dir = os.path.join(save_dir,'train')
-        max_num_tuplex = 200 ##200000
+        max_num_tuplex = 2000 ##200000
     elif(current_subset == const.Subset.VAL.value):
         files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'vallist.txt'))
         print('**** Val has ', len(files_list))
         save_dir = os.path.join(save_dir, 'val')
-        max_num_tuplex =  400 ## 20000
+        max_num_tuplex =  100 ## 20000
     elif(current_subset == const.Subset.TEST.value):
         files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'testlist.txt'))
         print('*** Test has ', len(files_list))
@@ -94,23 +118,33 @@ if __name__ == '__main__':
 
     utils.touch_dir(save_dir)
     tuple_idx = 0
-    tuple_idx = utils.last_tuple_idx(save_dir)
+    tuple_idx = max(0,utils.last_tuple_idx(save_dir)  - 5) ## As caution, regenerate last 5 tuples
     activity_list = sorted(utils.get_dirs(dataset_path));
     print('activity_list ',len(activity_list),activity_list)
 
     lbls_file = os.path.join(save_dir,'lbl.pkl')
 
     if(tuple_idx == 0):
-        lbls_ary = np.zeros(max_num_tuplex);
+        lbls_ary = np.ones(max_num_tuplex,dtype=np.int32)* -1; ## Invalid Activity
     else:
         lbls_ary = utils.pkl_read(lbls_file)
-        print(lbls_ary)
+        tuple_idx = 0;
 
-    while tuple_idx < max_num_tuplex :
+    import time
+    start_time = time.time()
+
+    queue_size = 25;
+    queues = [None] * queue_size
+    processes = [None] * queue_size
+    idx = 0
+    while tuple_idx< max_num_tuplex:
+        if ( lbls_ary[tuple_idx] != -1):
+            tuple_idx +=1
+            continue;
         #activity, current_vdx = sample_video(dataset_path)
         activity, current_vdx = sample_video_2(dataset_path,files_list)
         activity_lbl = activity_list.index(activity)
-        lbls_ary[tuple_idx] = activity_lbl;
+
         #print(activity_lbl )
         vdx_path = os.path.join(current_vdx)
         name, ext = utils.get_file_name_ext(vdx_path);
@@ -120,24 +154,47 @@ if __name__ == '__main__':
         flow_mag = utils.pkl_read(pkl_file)
 
         center_frame_idx, stack_diff_frame_idz = motion_aware.sample_high_motion_frames(vid, flow_mag,vdx_path)
-
         if(center_frame_idx is not None):
-            center_img = vid.get_data(center_frame_idx)
-            center_img = cv2.resize(center_img , (const.frame_height, const.frame_width))
 
-            imageio.imwrite(save_dir+ '/frame' + "%07d" % (tuple_idx) + '.jpg',center_img );
-            stack_diff = create_stack_diff(vid,stack_diff_frame_idz)
-            utils.pkl_write(save_dir+ '/frame' + "%07d" % (tuple_idx) + '.pkl',stack_diff)
-
-            utils.pkl_write(lbls_file,lbls_ary);
-            visualize = False
-            if(visualize):
-                for i in range(stack_diff.shape[2]):
-                    plt.imshow(stack_diff[:, :, i]);
-                    plt.savefig(save_dir + '/frame_' + '%07d' % (tuple_idx) +'_'+ str(i)+'_pkl.jpg')
-
+            # save_tuple(vid, center_frame_idx, stack_diff_frame_idz, save_dir, tuple_idx, lbls_ary, activity_lbl)
+            # tuple_idx += 1
+            queues[idx] = mp.Queue()
+            processes[idx] = mp.Process(target=save_tuple, args=(vid, center_frame_idx, stack_diff_frame_idz, save_dir,tuple_idx,lbls_ary,activity_lbl,queues[idx]))
+            processes[idx].start()
+            lbls_ary[tuple_idx] = activity_lbl;
+            idx +=1;
             tuple_idx +=1
+
+            if (idx == queue_size):
+                for i in range(queue_size):
+                    processes[i].join()
+                    success = queues[i].get()
+                    if (not success):
+                        failure_tuple_idx = queues[i].get()
+                        lbls_ary[failure_tuple_idx] = -1
+                        print('Something went wrong')
+                idx = 0;
+                utils.pkl_write(lbls_file, lbls_ary);
+
+
+
             if(tuple_idx % 100 == 0):
                 print('Number of tuples ', tuple_idx, '/ ', max_num_tuplex)
                 print(activity, current_vdx )
 
+    for i in range(idx):
+        processes[i].join()
+        success = queues[i].get()
+        if (not success):
+            print('Something went wrong')
+            failure_tuple_idx = queues[i].get()
+            lbls_ary[failure_tuple_idx] = -1
+
+    utils.pkl_write(lbls_file, lbls_ary);
+    for i in range(10):
+        print(activity_list[lbls_ary[i]],end="\t")
+
+
+
+    elapsed_time = time.time() - start_time
+    print('elapsed_time :', elapsed_time)

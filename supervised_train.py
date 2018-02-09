@@ -8,7 +8,7 @@ import constants as const
 import file_constants as file_const
 from data_sampling.tuple_loader import TupleLoader
 import numpy as np
-
+import utils
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
     if args[data_args.gen_nearby_frame]:
@@ -88,7 +88,6 @@ if __name__ == '__main__':
         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
         model_loss_value,accuracy_value, _ = sess.run([model_loss,model_accuracy,train_op], feed_dict)
 
-
         if(step % const.logging_threshold == 0):
             print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value);
             if(step != 0):
@@ -103,16 +102,14 @@ if __name__ == '__main__':
 
 
                 ## Inspect true positive (TP), FP, TN, TP per class
-                f = open('validation_classes.txt', 'w')
+                val_acc= np.zeros((file_const.num_classes,file_const.num_classes));
                 for class_i in range(file_const.num_classes):
                     feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, class_i, args);
                     prediction = sess.run(img2vec_model.class_prediction, feed_dict=feed_dict)
                     #bins = np.bincount(prediction,minlength=10);
                     bins = np.histogram(prediction, np.arange(0, file_const.num_classes+1, 1))[0]
-                    for j in range(file_const.num_classes):
-                        f.write(str(bins[j])+'\t')
-                    f.write("\n")
-                f.close()
+                    val_acc[class_i,:] = bins;
+                utils.pkl_write('./dump/val_acc.pkl',val_acc);
 
 
                 train_writer.add_run_metadata(run_metadata, 'step%03d' % step)

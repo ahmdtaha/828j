@@ -1,6 +1,10 @@
 batch_size = 10
 logging_threshold = 10
 
+
+nominal_width = 320
+nominal_height = 240
+
 max_frame_size = 300
 frame_height = 227
 frame_width = 227

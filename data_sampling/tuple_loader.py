@@ -8,6 +8,7 @@ import numpy as np
 import cv2
 import utils
 import traceback
+import imageio
 
 import matplotlib
 matplotlib.use('Agg')
@@ -29,44 +30,64 @@ class TupleLoader:
         self._data_augmentation_enabled = args[data_args.data_augmentation_enabled]
         print('Near By ',self._gen_nearby_frame)
 
-    def img_at_index(self,index,subset):
+    def img_at_index(self,index,subset,batch_idx=None,lbl=None,verbose=False):
         im = None;
-        while im is None:
-            im = cv2.imread(self._tuples_path + '/'+subset+'/frame' + '%07d' % (index) + '.jpg')
-            if(im is None):
-                #print('File Missing ::',file_const.data_path + '/'+subset+'/frame' + '%07d' % (index) + '.jpg')
-                index = index - 200;
-        if(im.shape[0] < const.frame_height):
-            im = cv2.copyMakeBorder(im, 1, 2, 1, 2, cv2.BORDER_REPLICATE)
+
+        im = cv2.imread(self._tuples_path + '/'+subset+'/frame' + '%07d' % (index) + '.jpg')
+        rand_crop = np.random.rand();
+        rand_rgb_channel = np.random.choice(3);
+        y = int(rand_crop *(im.shape[0] - const.frame_height))
+        x = int(rand_crop * (im.shape[1] - const.frame_width))
+        im = im[y:y+const.frame_height,x:x+const.frame_width,rand_rgb_channel];
+        im = im[:,:,np.newaxis]
+        im = np.repeat(im,3,axis=2);
+
+        if(verbose):
+            prefix = 'tuple_'
+            suffix = '_img';
+            cv2.imwrite(file_const.dump_path + prefix + str(batch_idx) + '_' + str(lbl) + suffix + '.png',im)
         return im;
 
 
-    def pkl_at_index(self,index,subset,ordered=True):
-        pkl = None
-        while pkl is None:
-            pkl = utils.pkl_read(self._tuples_path + '/' + subset + '/frame' + '%07d' % (index) + '.pkl')
-            if(pkl is None):
-                index = index - 200;
+    def pkl_at_index(self,index,subset,ordered=True,batch_idx=None,lbl=None,verbose=False):
 
-        if(not ordered):
+        pkl = utils.pkl_read(self._tuples_path + '/' + subset + '/frame' + '%07d' % (index) + '.pkl')
+        rand_crop = np.random.rand();
+        y = int(rand_crop * (pkl.shape[0] - const.frame_height))
+        x = int(rand_crop * (pkl.shape[1] - const.frame_width))
 
-            # Swap 2 random frames only
-            swap_channels = np.random.choice(pkl.shape[2],2,replace=False);
+        rand_rgb_channel = np.random.choice(3);
+        stack_diff = np.zeros((const.frame_height,const.frame_width,const.context_channels))
+        if (ordered):
+            frames_order = np.arange(const.context_channels + 1)
+        else:
+            frames_order = np.random.permutation(const.context_channels + 1)
+        print(frames_order )
+        for i in range(const.context_channels):
+            current_frame = pkl[y:y+const.frame_height,x:x+const.frame_width,rand_rgb_channel,frames_order[i]];
+            next_frame = pkl[y:y+const.frame_height,x:x+const.frame_width, rand_rgb_channel, frames_order[i+1]];
+            stack_diff[:,:,i] = current_frame.astype(np.int32) - next_frame.astype(np.int32);
 
-            # tmp_range = np.arange(pkl.shape[2])
-            # x = tmp_range[swap_channels[0]]
-            # tmp_range[swap_channels[0]] =  tmp_range[swap_channels[1]]
-            # tmp_range[swap_channels[1]] = x
-            # print('Correct Range = ',tmp_range)
 
-            tmp  = pkl[:,:,swap_channels[0]].copy();
-            pkl[:, :, swap_channels[0]] = pkl[:, :, swap_channels[1]]
-            pkl[:, :, swap_channels[1]] = tmp;
-            #save_pkls('ttuple', pkl[np.newaxis, :], 1, 'pkl')
-        if (pkl.shape[0] < const.frame_height):
-            npad = ((1, 2), (1, 2), (0, 0))
-            pkl = np.lib.pad(pkl, npad , 'constant', constant_values=0)
-        return pkl
+        if(verbose):
+            prefix = 'tuple_'
+            suffix = '_pkl'
+            images = []
+            for j in range(5):
+                im = stack_diff[:, :, j];
+                im = ((im - np.amin(im)) / np.amax(im) - np.amin(im)) * 255
+                im = im.astype(np.uint8)
+                images.append(im)
+                cv2.imwrite(file_const.dump_path + prefix + str(batch_idx) + '_' + str(ordered) + '_' + str(j) + suffix + '.png', im)
+            for j in range(5):
+                images.append(np.zeros((const.frame_height, const.frame_width), dtype=np.uint8))
+            imageio.mimsave(file_const.dump_path + prefix + str(batch_idx) + '_' + str(ordered) + '_' + str(lbl) + suffix + '.gif', images,
+                            duration=0.5)
+            if(ordered == False):
+                self.pkl_at_index(index,subset,ordered=True,batch_idx=batch_idx,lbl=lbl,verbose=True);
+
+
+        return stack_diff
 
     def unsupervised_next(self,subset, fix_label=None):
         subset_name = ''
@@ -109,8 +130,8 @@ class TupleLoader:
                 pos_count += 1
                 labels[batch_idx] = 1;
                 try:
-                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name)
-                    contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name)
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=1,verbose=True)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=1,verbose=True)
                 except:
                     traceback.print_exc()
                     print('Something was wrong when reading pos tuple at index', pos_tuple[batch_idx])
@@ -120,9 +141,9 @@ class TupleLoader:
 
                 labels[batch_idx] = -1;
                 try:
-                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name)
-                    if ((sampling_ratio[batch_idx] -postive_ratio)/(1-postive_ratio) <= 0.75 ):
-                        contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,ordered=False)
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=0,verbose=True)
+                    if ((sampling_ratio[batch_idx] -postive_ratio)/(1-postive_ratio) <= 1):
+                        contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,ordered=False,batch_idx=batch_idx,lbl=0,verbose=True)
                         order_neg_count += 1
                     else:
                         contexts[batch_idx, :, :] = self.pkl_at_index(neg_tuple[batch_idx], subset_name)
@@ -133,7 +154,7 @@ class TupleLoader:
                     words[batch_idx, :, :] = self.img_at_index(1, subset_name)
                     contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name)
 
-        #print(pos_count,neg_count,order_neg_count)
+        print(pos_count,neg_count,order_neg_count)
         # return words, contexts, labels
 
         labels[labels == -1] = 0
@@ -214,11 +235,27 @@ class TupleLoader:
             return self.unsupervised_next(subset, fix_label)
 
 def save_pkls(prefix, context,lbls,suffix):
+
+
+    # for filename in filenames:
+    #
+    # imageio.mimsave('/path/to/movie.gif', images)
+
     for i in range(context.shape[0]):
         current_cntxt = np.reshape(context[i], (const.frame_height, const.frame_width, 5))
+        images = []
         for j in range(5):
-            plt.imshow(current_cntxt[:,:,j]);
-            plt.savefig(file_const.dump_path + prefix + str(i) + '_' + str(j) + suffix+'.png')
+            im = current_cntxt[:,:,j];
+            im = ((im - np.amin(im)) / np.amax(im) - np.amin(im)) * 255
+            im = im.astype(np.uint8)
+            images.append(im)
+            cv2.imwrite(file_const.dump_path + prefix + str(i) + '_' + str(j) + suffix+'.png',im)
+        for j in range(5):
+            images.append(np.zeros((const.frame_height, const.frame_width),dtype=np.uint8))
+        imageio.mimsave(file_const.dump_path + prefix + str(i) + '_' + str(j) + suffix+'.gif', images,duration=0.5)
+            #plt.imshow(current_cntxt[:,:,j]);
+            #plt.axis("off")
+            #plt.savefig(file_const.dump_path + prefix + str(i) + '_' + str(j) + suffix+'.png',bbox_inches='tight')
 
 
 
@@ -237,10 +274,10 @@ if __name__ == '__main__':
     vdz_dataset = TupleLoader(args);
     import time
     start_time = time.time()
-    words, contexts, lbls = vdz_dataset.next(const.Subset.TRAIN,1)
+    words, contexts, lbls = vdz_dataset.next(const.Subset.TRAIN)
     elapsed_time = time.time() - start_time
     print('elapsed_time :', elapsed_time)
     ## Some visualization for debugging purpose
-    save_imgs('tuple_',words,lbls,'_img');
-    save_pkls('tuple_', contexts, lbls, '_pkl');
+    #save_imgs('tuple_',words,lbls,'_img');
+    #save_pkls('tuple_', contexts, lbls, '_pkl');
     print('Done')
