@@ -95,10 +95,12 @@ class TupleLoader:
         if (subset == const.Subset.TRAIN):
             subset_name = 'train'
             subset_size = self._num_training
+            class_lbls = self.train_lbls_ary
             ratio = 3
         elif (subset == const.Subset.VAL):
             subset_name = 'val'
             subset_size = self._num_val
+            class_lbls = self.val_lbls_ary
             ratio = 2;
         elif (subset == const.Subset.TEST):
             img_set = self._test_activities
@@ -118,44 +120,43 @@ class TupleLoader:
         elif (fix_label == 1):
             sampling_ratio = np.zeros(const.batch_size);
         elif (fix_label == -1):
-            #sampling_ratio = np.ones(const.batch_size);
             sampling_ratio = np.random.rand(const.batch_size) * (1-postive_ratio)+ postive_ratio ;
         neg_count = 0
         pos_count = 0
         order_neg_count = 0
+        verbose_in_dump = False;
         for batch_idx in np.arange(0, const.batch_size):
-            # print(pos_tuple[batch_idx])
 
             if (sampling_ratio[batch_idx] < postive_ratio ):
+
                 pos_count += 1
                 labels[batch_idx] = 1;
-                try:
-                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=1,verbose=True)
-                    contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=1,verbose=True)
-                except:
-                    traceback.print_exc()
-                    print('Something was wrong when reading pos tuple at index', pos_tuple[batch_idx])
+                if (class_lbls[pos_tuple[batch_idx]] != -1):
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=1,verbose=verbose_in_dump )
+                    contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=1,verbose=verbose_in_dump )
+                else:
+                    print("Something wrong with tuple", pos_tuple[batch_idx], file=sys.stderr)
                     words[batch_idx, :, :] = self.img_at_index(0, subset_name)
                     contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name)
+
             else:
 
                 labels[batch_idx] = -1;
-                try:
-                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=0,verbose=True)
+                if (class_lbls[pos_tuple[batch_idx]] != -1):
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=0,verbose=verbose_in_dump )
                     if ((sampling_ratio[batch_idx] -postive_ratio)/(1-postive_ratio) <= 1):
-                        contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,ordered=False,batch_idx=batch_idx,lbl=0,verbose=True)
+                        contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,ordered=False,batch_idx=batch_idx,lbl=0,verbose=verbose_in_dump )
                         order_neg_count += 1
                     else:
-                        contexts[batch_idx, :, :] = self.pkl_at_index(neg_tuple[batch_idx], subset_name)
+                        contexts[batch_idx, :, :] = self.pkl_at_index(neg_tuple[batch_idx], subset_name,batch_idx=batch_idx,lbl=0,verbose=verbose_in_dump )
                         neg_count += 1
-                except:
-                    traceback.print_exc()
-                    print('Something was wrong when reading neg tuple at index', pos_tuple[batch_idx],neg_tuple[batch_idx])
-                    words[batch_idx, :, :] = self.img_at_index(1, subset_name)
-                    contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name)
+                else:
+                    print("Something wrong with tuple", pos_tuple[batch_idx], file=sys.stderr)
+                    words[batch_idx, :, :] = self.img_at_index(0, subset_name)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name,ordered=False)
 
         print(pos_count,neg_count,order_neg_count)
-        # return words, contexts, labels
+
 
         labels[labels == -1] = 0
         labels_hot_vector = np.zeros((const.batch_size, 2))
@@ -184,9 +185,7 @@ class TupleLoader:
             tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
         else:
             samples_pool = np.where(class_lbls == fix_label)[0]
-            #print(samples_pool)
             tuple = np.random.choice(samples_pool,const.batch_size)
-            #tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
 
         words = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.frame_channels))
         contexts = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.context_channels))
@@ -197,23 +196,16 @@ class TupleLoader:
 
 
         for batch_idx in np.arange(0, const.batch_size):
-
-            try:
-                found = False
-                while not found:
-                    if (os.path.exists(self._tuples_path + '/'+subset_name+'/frame' + '%07d' % (tuple[batch_idx]) + '.jpg')):
-                        labels[batch_idx] = class_lbls[tuple[batch_idx]];
-                        words[batch_idx, :, :] = self.img_at_index(tuple[batch_idx], subset_name)
-                        contexts[batch_idx, :, :] = self.pkl_at_index(tuple[batch_idx], subset_name)
-                        found = True;
-                    else:
-                        tuple[batch_idx] = tuple[batch_idx] - 200
-            except:
-                traceback.print_exc()
-                print('Something was wrong when reading tuple at index',tuple[batch_idx])
+            if(class_lbls[tuple[batch_idx]] != -1):
+                labels[batch_idx] = class_lbls[tuple[batch_idx]];
+                words[batch_idx, :, :] = self.img_at_index(tuple[batch_idx], subset_name)
+                contexts[batch_idx, :, :] = self.pkl_at_index(tuple[batch_idx], subset_name)
+            else:
+                print("Something wrong with tuple",tuple[batch_idx], file=sys.stderr)
                 labels[batch_idx] = class_lbls[0];
                 words[batch_idx, :, :] = self.img_at_index(0, subset_name)
                 contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name)
+
 
 
         labels_hot_vector = np.zeros((const.batch_size, file_const.num_classes))
@@ -274,7 +266,7 @@ if __name__ == '__main__':
     vdz_dataset = TupleLoader(args);
     import time
     start_time = time.time()
-    words, contexts, lbls = vdz_dataset.next(const.Subset.TRAIN)
+    words, contexts, lbls = vdz_dataset.next(const.Subset.VAL,fix_label=-1,supervised=False)
     elapsed_time = time.time() - start_time
     print('elapsed_time :', elapsed_time)
     ## Some visualization for debugging purpose

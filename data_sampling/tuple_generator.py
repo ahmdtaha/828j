@@ -5,10 +5,11 @@ import utils
 import os
 import cv2
 import constants as const
+import file_constants as file_const
 import numpy as np
 import imageio
 import multiprocessing as mp
-
+import traceback
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -81,7 +82,7 @@ def save_tuple(vid,center_frame_idx,stack_diff_frame_idz,save_dir,tuple_idx,lbls
 
 
 if __name__ == '__main__':
-    dataset_path = utils.get_dataset_path('UCF50')
+    dataset_path = utils.get_dataset_path(file_const.dataset_name)
     pkls_path = dataset_path+'_pkls'
     save_dir = dataset_path+'_tuples_class'
 
@@ -148,7 +149,11 @@ if __name__ == '__main__':
         #print(activity_lbl )
         vdx_path = os.path.join(current_vdx)
         name, ext = utils.get_file_name_ext(vdx_path);
-        vid = imageio.get_reader(vdx_path, 'ffmpeg')
+        try:
+            vid = imageio.get_reader(vdx_path, 'ffmpeg')
+        except:
+            traceback.print_exc()
+            continue
 
         pkl_file = os.path.join(pkls_path,activity,name)+'.pkl'
         flow_mag = utils.pkl_read(pkl_file)
