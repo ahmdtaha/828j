@@ -27,10 +27,8 @@ if __name__ == '__main__':
     img_generator = TupleLoader(args)
     img_generator.next(const.Subset.TRAIN)
 
-    classification = True
-
-
-    img2vec_model = TwoStreamNet()
+    load_alex_weights = True;
+    img2vec_model = TwoStreamNet(load_alex_weights=load_alex_weights)
     model_loss = img2vec_model.loss
     model_accuracy = img2vec_model.accuracy
 
@@ -61,6 +59,9 @@ if __name__ == '__main__':
     if (os.path.exists(file_const.model_save_path) and len(os.listdir(file_const.model_save_path)) > 1):
         saver.restore(sess, ckpt_file)
         print('Previous Model loaded ')
+    elif load_alex_weights:
+        print('Loading img2vec_model.assign_operations:', len(img2vec_model.assign_operations));
+        sess.run(img2vec_model.assign_operations);
 
 
 

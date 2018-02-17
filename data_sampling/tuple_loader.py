@@ -62,7 +62,7 @@ class TupleLoader:
             frames_order = np.arange(const.context_channels + 1)
         else:
             frames_order = np.random.permutation(const.context_channels + 1)
-        print(frames_order )
+        #print(frames_order )
         for i in range(const.context_channels):
             current_frame = pkl[y:y+const.frame_height,x:x+const.frame_width,rand_rgb_channel,frames_order[i]];
             next_frame = pkl[y:y+const.frame_height,x:x+const.frame_width, rand_rgb_channel, frames_order[i+1]];
@@ -155,7 +155,7 @@ class TupleLoader:
                     words[batch_idx, :, :] = self.img_at_index(0, subset_name)
                     contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name,ordered=False)
 
-        print(pos_count,neg_count,order_neg_count)
+        #print(pos_count,neg_count,order_neg_count)
 
 
         labels[labels == -1] = 0

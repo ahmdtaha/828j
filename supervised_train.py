@@ -31,11 +31,8 @@ if __name__ == '__main__':
     img_generator = TupleLoader(args)
     img_generator.next(const.Subset.TRAIN,None,supervised=True)
 
-    classification = True
-
-
-
-    img2vec_model = TwoStreamNet(supervised=True,train_alexnet=True)
+    load_alex_weights = True;
+    img2vec_model = TwoStreamNet(supervised=True,train_alexnet=True,load_alex_weights=load_alex_weights)
     model_loss = img2vec_model.supervised_loss
     model_accuracy = img2vec_model.supervised_accuracy
 
@@ -57,7 +54,11 @@ if __name__ == '__main__':
 
     sess = tf.InteractiveSession()
     now = datetime.now()
-    train_writer = tf.summary.FileWriter(file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S"), sess.graph)
+    if(file_const.tensorbaord_file == None):
+        tb_path = file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
+    else:
+        tb_path = file_const.tensorbaord_dir + file_const.tensorbaord_file
+    train_writer = tf.summary.FileWriter(tb_path, sess.graph)
     tf.global_variables_initializer().run()
     saver = tf.train.Saver()  # saves variables learned during training
 
@@ -75,7 +76,9 @@ if __name__ == '__main__':
             img2vec_model.load_pretrained(sess, ckpt_file);
             print('Pretrained Weights loaded, while some layers are randomized')
 
-
+    elif load_alex_weights:
+        print('Loading img2vec_model.assign_operations:',len(img2vec_model.assign_operations));
+        sess.run(img2vec_model.assign_operations);
 
     train_loss = tf.summary.scalar('Train Loss', model_loss)
     val_loss = tf.summary.scalar('Val Loss', model_loss)

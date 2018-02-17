@@ -23,7 +23,7 @@ class TwoStreamNet:
         return tf.reshape(tf.nn.bias_add(conv, biases), [-1] + conv.get_shape().as_list()[1:])
 
 
-    def build_net(self,input,net_data,train_params=True,prefix=''):
+    def build_net(self,input,net_data,train_params=True,prefix='',assign_weights=False):
 
         if (prefix == 'cntxt_'):
             c_i = const.context_channels
@@ -175,29 +175,7 @@ class TwoStreamNet:
 
             fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(np.prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
 
-        # fc7
-        # fc(4096, name='fc7')
-        # fc7W = tf.Variable(net_data["fc7"][0])
-        # fc7b = tf.Variable(net_data["fc7"][1])
-        #print('fc6 shapes => ', net_data["fc6"][0].shape, net_data["fc6"][1].shape)
-        #print('fc shapes => ' ,net_data["fc7"][0].shape,net_data["fc7"][1].shape)
-        # with tf.variable_scope(prefix+"fc7"):
-        #     fc7W = tf.get_variable(name='fc7W',shape=net_data["fc7"][0].shape,trainable=trainable_params)
-        #     fc7b = tf.get_variable(name='fc7b',shape=net_data["fc7"][1].shape,trainable=trainable_params)
-        #
-        #
-        #     fc7 = tf.nn.relu_layer(fc6, fc7W, fc7b)
-        #
-        # with tf.variable_scope(prefix+"fc8"):
-        #     # fc8
-        #     # fc(1000, relu=False, name='fc8')
-        #     # fc8W = tf.Variable(net_data["fc8"][0])
-        #     # fc8b = tf.Variable(net_data["fc8"][1])
-        #     fc8W = tf.get_variable(name='fc8W',shape=net_data["fc8"][0].shape,trainable=trainable_params)
-        #     fc8b = tf.get_variable(name='fc8b',shape=net_data["fc8"][1].shape,trainable=trainable_params)
-        #     fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
 
-        assign_weights = False
         if assign_weights:
             assign_operations = []
             assign_operations.append(conv1W.assign(net_data["conv1"][0]))
@@ -210,12 +188,6 @@ class TwoStreamNet:
             assign_operations.append(conv4b.assign(net_data["conv4"][1]))
             assign_operations.append(conv5W.assign(net_data["conv5"][0]))
             assign_operations.append(conv5b.assign(net_data["conv5"][1]))
-            #assign_operations.append(fc6W.assign(net_data["fc6"][0]))
-            #assign_operations.append(fc6b.assign(net_data["fc6"][1]))
-            #assign_operations.append(fc7W.assign(net_data["fc7"][0]))
-            #assign_operations.append(fc7b.assign(net_data["fc7"][1]))
-            #assign_operations.append(fc8W.assign(net_data["fc8"][0]))
-            #assign_operations.append(fc8b.assign(net_data["fc8"][1]))
 
             self.assign_operations = assign_operations;
 
@@ -320,7 +292,7 @@ class TwoStreamNet:
         print(np.mean(word_dense),np.mean(context_dense ))
 
 
-    def __init__(self,supervised=False,train_alexnet=True):
+    def __init__(self,supervised=False,train_alexnet=True,load_alex_weights=False):
         net_data = np.load(open(file_const.model_weights_filepath, "rb"), encoding="latin1").item()
 
         batch_size = None
@@ -344,7 +316,7 @@ class TwoStreamNet:
 
 
         with tf.variable_scope("siamese",reuse=tf.AUTO_REUSE) as scope:
-            self.layers1 = self.build_net(words, net_data,train_params=train_alexnet,prefix='word_')
+            self.layers1 = self.build_net(words, net_data,train_params=train_alexnet,prefix='word_',assign_weights=load_alex_weights)
             self.fcf_word_dense= self.layers1[-1]
             #fc8 = self.layers1[-1]
 
@@ -362,7 +334,7 @@ class TwoStreamNet:
 
         #dense = tf.concat([self.fcf_word_dense, self.fcf_context_dense], 1,name='embedding')
         fusion_layer = self.fcf_word_dense - self.fcf_context_dense
-        print(fusion_layer)
+
 
 
         ## The weights of the following FC layers are still <<<<<< OPEN QUESTION >>>>>>
