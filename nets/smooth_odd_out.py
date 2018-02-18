@@ -294,7 +294,7 @@ class OddOneOutNet:
         print(np.mean(word_dense),np.mean(context_dense ))
 
 
-    def __init__(self,load_alex_weights=False,num_clips=3):
+    def __init__(self,load_alex_weights=False,num_clips=2):
         net_data = np.load(open(file_const.model_weights_filepath, "rb"), encoding="latin1").item()
 
         batch_size = None
@@ -350,13 +350,13 @@ class OddOneOutNet:
             unsupervised_fc8 = tf.layers.dense(inputs=unsupervised_fc7, units=128, name='F8_128',activation=tf.nn.relu);
             unsupervised_logits = tf.layers.dense(inputs=unsupervised_fc8, units=num_clips, name='fc_prediction')
 
-        with tf.variable_scope("unsupervised_loss") as scope:
+        with tf.variable_scope("O3N_loss") as scope:
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.unsupervised_labels,
                                                                     logits=unsupervised_logits, name='xentropy')
             self.logits = tf.nn.softmax(unsupervised_logits)
             loss1 = tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
-        with tf.name_scope('unsupervised_accuracy'):
+        with tf.name_scope('O3N_accuracy'):
             correct_prediction = tf.equal(tf.argmax(self.unsupervised_labels, 1),
                                           tf.argmax(unsupervised_logits, 1))
             self.correct_prediction = tf.cast(correct_prediction, tf.float32)
