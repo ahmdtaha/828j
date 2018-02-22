@@ -7,7 +7,7 @@ data.
 """
 
 import numpy as np
-from bitarray import bitarray
+import bitarray
 
 
 def generate_basis(n, dim):
@@ -17,7 +17,8 @@ def generate_basis(n, dim):
     :param dim: The dimensionality of the data to be hashed
     :return: A list of n hyperplanes that can be used to produce hashes
     """
-    return [np.linalg.norm(np.random.randn(dim)) for i in range(n)]
+    planes = [np.random.randn(dim) for i in range(n)]
+    return [p / np.linalg.norm(p) for p in planes]
 
 
 def lsh(v, basis):
@@ -30,7 +31,7 @@ def lsh(v, basis):
     """
 
     signs = [np.sign(np.dot(v, b)) for b in basis]
-    hash = bitarray(len(signs))
+    hash = bitarray.bitarray(len(signs))
 
     for i in range(len(signs)):
         hash[i] = signs[i] > 0
@@ -45,10 +46,8 @@ def hamming_distance(h1, h2):
     :param h2: A second locality sensitive hash produced from the same basis as h1
     :return: The hamming distance between h1 and h2
     """
-    d = 0
-    v = h1 ^ h2
-    while not v == 0:
-        d = d + 1
-        v = v & (v - 1)
-
-    return d
+    b1 = bitarray.bitarray()
+    b1.frombytes(h1)
+    b2 = bitarray.bitarray()
+    b2.frombytes(h2)
+    return bitarray.bitdiff(b1, b2)
