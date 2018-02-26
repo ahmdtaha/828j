@@ -105,6 +105,56 @@ def _test_videos(model, test_tuples_dir, video_list, sess):
     return test_labels
 
 
+def compute_classification_accuracy(num_splits, num_classes, activities,
+                                    predictions_all, dataset_name,
+                                    target_split_id=None):
+    """
+    Computes the mean classification accuracy for a dataset
+
+    Args:
+        num_splits (int): number of different splits of a dataset (e.g. in
+            HMDB51 and UCF101, there are 3 splits)
+        num_classes (int): number of action classes in the dataset.
+        activities (list): list of action classes in the dataset
+        predictions_all (2D array): (num_splits x num_classes) array of lists,
+            each item is a list of predictions for the corresponding action
+            class and split id.
+        dataset_name  (str): name of the dataset
+        target_split_id (int): [OPTIONAL] specifies a specific split for which
+            to compute the accuracy.
+    """
+    splits_accuracy = np.zeros(num_splits)
+    for split_id in range(1, 4):
+        # if testing only a specific split, ignore files from other splits
+        classes_correct_cnt = np.zeros(num_classes)
+        classes_total = np.zeros(num_classes)
+        if target_split_id is not None and split_id != target_split_id:
+            continue
+
+        print('Results for %s, split #%id:' % (dataset_name, split_id))
+        for activity_id in range(num_classes):
+            correct_cnt = np.sum(
+                predictions_all[split_id - 1][activity_id] == activity_id)
+            total = len(predictions_all[split_id - 1][activity_id])
+            classes_correct_cnt[activity_id] = correct_cnt
+            classes_total[activity_id] = total
+            acc = correct_cnt * 100.0 / total
+            print('%02d: %s: %.2f%%' % (
+                activity_id, activities[activity_id], acc))
+
+        split_acc = np.sum(classes_correct_cnt) * 100.0 / np.sum(classes_total)
+        print('Mean accuracy for %s-split %d = %.2f%%' % (
+            dataset_name, split_id, split_acc))
+        print('------------------------------------------------\n')
+        splits_accuracy[split_id - 1] = split_acc
+
+    print('%s Summary Results for all 3 splits: ' % dataset_name,
+          splits_accuracy)
+    if target_split_id is not None:
+        print('Mean accuracy over 3 splits = %.2f' % np.average(
+              splits_accuracy))
+
+
 def test_hmdb51(dataset_path, model_ckpt_file, test_tuples_parent_dir,
                 split_metadata_dir, target_split_id=None):
     """
@@ -135,7 +185,7 @@ def test_hmdb51(dataset_path, model_ckpt_file, test_tuples_parent_dir,
 # FIXME: 2) how to construct the corresponding arch to the target dataset?!
 # it should be passed as a parameter, not coded in file constans.num_classes
 # FIXME: 3) batch size needs to be passed as a parameter! (@test sz=1)
-    model = TwoStreamNet(supervised=True, train_alexnet=True)
+    model = TwoStreamNet(supervised=True, train_alexnet=False)
     # sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver()
     # saver = tf.train.import_meta_graph(model_arch_path)
@@ -174,35 +224,86 @@ def test_hmdb51(dataset_path, model_ckpt_file, test_tuples_parent_dir,
         test_labels_all[split_id - 1][activity_id] = lbls
 
     # Compute accuracy metric
-    splits_accuracy = np.zeros(k_num_splits)
+    compute_classification_accuracy(k_num_splits, k_num_classes,
+                                    activities, test_labels_all, 'HMDB51',
+                                    target_split_id)
+
+
+def test_ucf101(dataset_path, model_ckpt_file, test_tuples_parent_dir,
+                split_metadata_dir, target_split_id=None):
+    """
+    Computes and prints the average classification accuracy for the HMDB51
+    dataset.
+
+    Args:
+        dataset_path (str): path to the UCF101 dataset.
+        model_ckpt_file (str): path the trained model.
+        test_tuples_parent_dir (str): parent directory where pre-generated test
+                                      tuples are stored.
+        split_metadata_dir (str): path to directory with text files describing
+            how the dataset is split (3 different splits and train-val-test)
+        target_split_id (int) - optional: pass if you want to evaluate a
+            specific split only.
+    """
+    k_num_splits = 3
+    k_num_classes = 101
+
+    # Load trained model
+    print('Loading model for the %s dataset from %s' % (
+        dataset_path, model_ckpt_file))
+    if not osp.exists(model_ckpt_file):
+        raise Exception("Error: Couldn't find model at %s!" % model_ckpt_file)
+
+    sess = tf.InteractiveSession()
+# FIXME: 2) how to construct the corresponding arch to the target dataset?!
+# it should be passed as a parameter, not coded in file constans.num_classes
+# FIXME: 3) batch size needs to be passed as a parameter! (@test sz=1)
+    model = TwoStreamNet(supervised=True, train_alexnet=False)
+    # sess.run(tf.global_variables_initializer())
+    saver = tf.train.Saver()
+    # saver = tf.train.import_meta_graph(model_arch_path)
+    saver.restore(sess, model_ckpt_file)
+    print('Model loaded successfully')
+
+    # test_labels is 3 x 101 2D array of lists (3 splits x 51 activities)
+    test_labels_all = np.reshape([None] * k_num_classes * k_num_splits, (
+        k_num_splits, k_num_classes))
+
+    with open(osp.join(dataset_path, 'activities_list'), 'r') as f:
+        activities = [x.strip() for x in f.readlines()]
+    assert len(activities) == k_num_classes, 'Error reading HMDB51 classes!'
+
+    # Loop over each split file (dataset is divided into three splits, each
+    # split is then divided into val-train-test)
     for split_id in range(1, 4):
-        # if testing only a specific split, ignore files from other splits
-        classes_correct_cnt = np.zeros(k_num_classes)
-        classes_total = np.zeros(k_num_classes)
-        if target_split_id is not None and split_id != target_split_id:
-            continue
+        f_name = 'testlist%02d.txt' % split_id
+        with open(osp.join(splits_dir, f_name), 'r') as f:
+            lines = [x.strip() for x in f.readlines()]
 
-        print('Results for HMDB51, split #%id:' % split_id)
-        for activity_id in range(k_num_classes):
-            correct_cnt = np.sum(
-                test_labels_all[split_id - 1][activity_id] == activity_id)
-            total = len(test_labels_all[split_id - 1][activity_id])
-            classes_correct_cnt[activity_id] = correct_cnt
-            classes_total[activity_id] = total
-            acc = correct_cnt * 100.0 / total
-            print('%02d: %s: %.2f%%' % (
-                activity_id, activities[activity_id], acc))
+        parsed_lines = np.asarray(list(map(lambda x: x.split('/'), lines)))
+        videos_label_name = parsed_lines[:, 0]
+        videos_name = parsed_lines[:, 1]
+        action_classes = np.unique(videos_label_name)
+        assert len(action_classes) == 101, 'Error parsing the UCF101 dataset'
 
-        split_acc = np.sum(classes_correct_cnt) * 100.0 / np.sum(classes_total)
-        print('Mean accuracy for HMDB51-split %d = %.2f%%' % (
-            split_id, split_acc))
-        print('------------------------------------------------\n')
-        splits_accuracy[split_id - 1] = split_acc
+        for activity in action_classes:
+            activity_id = activities.index(activity)
+            activity_test_dir_name = (
+                activity + '_test_tuples_split%d' % split_id)
+            activity_test_dir = osp.join(test_tuples_parent_dir,
+                                         activity_test_dir_name)
+            activity_videos_indices = list(filter(
+                lambda index: videos_label_name[index] == activity,
+                range(len(videos_name))))
+            activity_videos = videos_name[activity_videos_indices]
 
-    print('HMDB51 Summary Results for all 3 splits: ', splits_accuracy)
-    if target_split_id is not None:
-        print('Mean accuracy over 3 splits = %.2f' % np.average(
-            splits_accuracy))
+            lbls = _test_videos(model, activity_test_dir, test_videos, sess)
+            test_labels_all[split_id - 1][activity_id] = lbls
+
+    # Compute accuracy metric
+    compute_classification_accuracy(k_num_splits, k_num_classes,
+                                    activities, test_labels_all, 'UCF101',
+                                    target_split_id)
 
 
 if __name__ == '__main__':
@@ -227,7 +328,7 @@ if __name__ == '__main__':
 
     if args.dataset_name == 'hmdb51':
         test_hmdb51(args.dataset_path, args.model_save_dir,
-                    args.test_tuples_parent_dir, args.split_metadata_dir,
-                    target_split_id=1)
+                    args.test_tuples_parent_dir, args.split_metadata_dir)
     elif args.dataset_name == 'ucf101':
-        None  # TODO: implement
+        test_ucf101(args.dataset_path, args.model_save_dir,
+                    args.test_tuples_parent_dir, args.split_metadata_dir)
