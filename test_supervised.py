@@ -328,7 +328,7 @@ if __name__ == '__main__':
 
     if args.dataset_name == 'hmdb51':
         test_hmdb51(args.dataset_path, args.model_save_dir,
-                    args.test_tuples_parent_dir, args.split_metadata_dir)
+                    args.test_tuples_basedir, args.split_metadata_dir)
     elif args.dataset_name == 'ucf101':
         test_ucf101(args.dataset_path, args.model_save_dir,
-                    args.test_tuples_parent_dir, args.split_metadata_dir)
+                    args.test_tuples_basedir, args.split_metadata_dir)
