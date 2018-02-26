@@ -68,7 +68,6 @@ def _get_standard_frame(video, frame_index):
         rescaled to a standard size.
     """
     frame = video.get_data(frame_index)
-# TODO: @taha: discuss nominal_width/height vs frame_width/height
     if(frame.shape[0] != const.frame_height or
        frame.shape[1] != const.frame_width):
         frame = cv2.resize(frame, (const.frame_width, const.frame_height))
@@ -257,8 +256,50 @@ def _process_hmdb51(dataset_path, splits_dir, test_tuples_basedir,
         print('Total processed files so far = %d' % num_processed_files)
 
 
-def _process_ucf101():
-    None  # TODO: implement
+def _process_ucf101(dataset_path, splits_dir, test_tuples_basedir,
+                    num_threads=16):
+    """
+    Generates and saves test tuples for all test videos of the UCF101 dataset.
+    It operates in multi-threads for efficiency.
+
+    Args:
+        dataset_path (str): path to the HMDB51 dataset.
+        splits_dir (str): path to directory with text files describing how the
+            dataset is split (3 different splits and train-val-test)
+        test_tuples_basedir (str): directory to save generated test tuples.
+        num_threads (int): number of threads for parallel processing.
+    """
+    num_processed_files = 0
+
+    # Loop over each split file (dataset is divided into three splits, each
+    # split is then divided into val-train-test)
+    for split_id in range(1, 4):
+        f_name = 'testlist%02d.txt' % split_id
+        with open(osp.join(splits_dir, f_name), 'r') as f:
+            lines = [x.strip() for x in f.readlines()]
+
+        parsed_lines = np.asarray(list(map(lambda x: x.split('/'), lines)))
+        videos_label_name = parsed_lines[:, 0]
+        videos_name = parsed_lines[:, 1]
+        action_classes = np.unique(videos_label_name)
+        assert len(action_classes) == 101, 'Error parsing the UCF101 dataset'
+
+        for activity in action_classes:
+            activity_dir = osp.join(dataset_path, activity)
+            activity_out_dir = osp.join(test_tuples_basedir, activity)
+            save_dir = activity_out_dir + '_test_tuples_split%d' % split_id
+            activity_videos_indices = list(filter(
+                lambda index: videos_label_name[index] == activity,
+                range(len(videos_name))))
+            activity_videos = videos_name[activity_videos_indices]
+
+            _process_split_list(activity_dir, activity_videos, save_dir,
+                                num_threads)
+            # Print progress info
+            num_processed_files += len(activity_videos)
+            print('Processed activity %s-split%d with %d test videos' % (
+                activity, split_id, len(activity_videos)))
+            print('Total processed files so far = %d' % num_processed_files)
 
 
 if __name__ == '__main__':
@@ -284,6 +325,8 @@ if __name__ == '__main__':
         _process_hmdb51(args.dataset_path, args.split_metadata_dir,
                         args.test_tuples_basedir, args.num_threads)
     elif args.dataset_name == 'ucf101':
-        None  # TODO: implement
+        _process_ucf101(args.dataset_path, args.split_metadata_dir,
+                        args.test_tuples_basedir, args.num_threads)
+
     runtime = time.time() - start_time
     print('runtime = ', runtime)
