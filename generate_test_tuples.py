@@ -13,7 +13,6 @@ import time
 import traceback
 
 
-# TODO: @taha: the stack of diff visualization was worrying! :/
 def _visualize_saved_pickle(pkl_file_path):
     """
     Visualize center frames and their stack of differences for some video.
@@ -30,6 +29,7 @@ def _visualize_saved_pickle(pkl_file_path):
         plt.show()
 
         stack = stacks_of_diffs[i]
+        stack = (stack + 255) / 2
         for j in range(stack.shape[-1]):
             plt.imshow(stack[:, :, j], cmap='gray')
             plt.show()
@@ -90,7 +90,7 @@ def _create_stack_of_diffs(video, frame_indices):
     """
     num_frames = len(frame_indices)
     stack_of_diffs = np.zeros((const.frame_height, const.frame_width,
-                               num_frames - 1), dtype=np.uint8)
+                               num_frames - 1), dtype=np.int32)
 
     prev_frame = _get_standard_frame(video, frame_indices[0])
     # dbg_rgb_path = str(frame_indices[0]) + '_rgb.png'
@@ -105,7 +105,8 @@ def _create_stack_of_diffs(video, frame_indices):
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
         # dbg_gray_path = str(frame_indices[ii]) + '_gray.png'
         # cv2.imwrite(dbg_gray_path, frame)
-        stack_of_diffs[:, :, ii - 1] = frame - prev_frame
+        stack_of_diffs[:, :, ii - 1] = frame.astype(
+            np.int32) - prev_frame.astype(np.int32)
         # dbg_diff_path = str(frame_indices[ii]) + '_diff.png'
         # cv2.imwrite(dbg_diff_path, np.squeeze(stack_of_diffs[:, :, ii - 1]))
         prev_frame = frame

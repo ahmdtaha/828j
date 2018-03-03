@@ -179,7 +179,7 @@ def test_hmdb51(dataset_path, model_ckpt_file, test_tuples_parent_dir,
         dataset_path, model_ckpt_file))
 # FIXME: fix the next validation: file name is *.ckpt.[some_suffix]
     # if not osp.exists(model_ckpt_file):
-    #     raise Exception("Error: Couldn't find model at %s!" % model_ckpt_file)
+    #     raise Exception("Error: Couldn't find model at %s" % model_ckpt_file)
 
     sess = tf.InteractiveSession()
 # FIXME: 1) ask taha about the paramter 'train_alexnet'
@@ -254,7 +254,7 @@ def test_ucf101(dataset_path, model_ckpt_file, test_tuples_parent_dir,
         dataset_path, model_ckpt_file))
 # FIXME: fix the next validation: file name is *.ckpt.[some_suffix]
     # if not osp.exists(model_ckpt_file):
-    #     raise Exception("Error: Couldn't find model at %s!" % model_ckpt_file)
+    #     raise Exception("Error: Couldn't find model at %s" % model_ckpt_file)
 
     sess = tf.InteractiveSession()
 # FIXME: 2) how to construct the corresponding arch to the target dataset?!
@@ -300,7 +300,8 @@ def test_ucf101(dataset_path, model_ckpt_file, test_tuples_parent_dir,
                 range(len(videos_name))))
             activity_videos = videos_name[activity_videos_indices]
 
-            lbls = _test_videos(model, activity_test_dir, activity_videos, sess)
+            lbls = _test_videos(model, activity_test_dir, activity_videos,
+                                sess)
             test_labels_all[split_id - 1][activity_id] = lbls
 
     # Compute accuracy metric
