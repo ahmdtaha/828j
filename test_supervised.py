@@ -22,7 +22,7 @@ def _compute_best_action(video_splits_scores, method='max_log_likelihood'):
     Returns (int):
        predicted action label
     """
-    num_action_classes = len(video_splits_scores[-1])
+    num_action_classes = len(video_splits_scores[0])
     aggregate_scores = np.zeros(num_action_classes)
     if method == 'max_log_likelihood':
         for split_scores in video_splits_scores:
@@ -84,12 +84,12 @@ def _test_videos(model, test_tuples_dir, video_list, sess):
        predicted action labels for the input list of videos
     """
 # TODO: should we handle corrupted files here?
-    # video_list_all = video_list
-    # video_list = [x for x in video_list if osp.exists(osp.join(
-    #     test_tuples_dir, osp.splitext(x)[0] + '-test.pkl'))]
-    # if len(video_list) != len(video_list_all):
-    #     print('WARNING: skipping %d corrupted test videos in %s!' % (
-    #         (len(video_list_all) - len(video_list)), test_tuples_dir))
+    video_list_all = video_list
+    video_list = [x for x in video_list if osp.exists(osp.join(
+        test_tuples_dir, osp.splitext(x)[0] + '-test.pkl'))]
+    if len(video_list) != len(video_list_all):
+        print('WARNING: skipping %d corrupted test videos in %s!' % (
+            (len(video_list_all) - len(video_list)), test_tuples_dir))
     test_labels = np.zeros(len(video_list))
     # for video_name in video_list:
     for ii in range(len(video_list)):
@@ -177,8 +177,9 @@ def test_hmdb51(dataset_path, model_ckpt_file, test_tuples_parent_dir,
     # Load trained model
     print('Loading model for the %s dataset from %s' % (
         dataset_path, model_ckpt_file))
-    if not osp.exists(model_ckpt_file):
-        raise Exception("Error: Couldn't find model at %s!" % model_ckpt_file)
+# FIXME: fix the next validation: file name is *.ckpt.[some_suffix]
+    # if not osp.exists(model_ckpt_file):
+    #     raise Exception("Error: Couldn't find model at %s!" % model_ckpt_file)
 
     sess = tf.InteractiveSession()
 # FIXME: 1) ask taha about the paramter 'train_alexnet'
@@ -251,8 +252,9 @@ def test_ucf101(dataset_path, model_ckpt_file, test_tuples_parent_dir,
     # Load trained model
     print('Loading model for the %s dataset from %s' % (
         dataset_path, model_ckpt_file))
-    if not osp.exists(model_ckpt_file):
-        raise Exception("Error: Couldn't find model at %s!" % model_ckpt_file)
+# FIXME: fix the next validation: file name is *.ckpt.[some_suffix]
+    # if not osp.exists(model_ckpt_file):
+    #     raise Exception("Error: Couldn't find model at %s!" % model_ckpt_file)
 
     sess = tf.InteractiveSession()
 # FIXME: 2) how to construct the corresponding arch to the target dataset?!
@@ -275,9 +277,10 @@ def test_ucf101(dataset_path, model_ckpt_file, test_tuples_parent_dir,
 
     # Loop over each split file (dataset is divided into three splits, each
     # split is then divided into val-train-test)
-    for split_id in range(1, 4):
+    split_ids = range(1, 4) if target_split_id is None else [target_split_id]
+    for split_id in split_ids:
         f_name = 'testlist%02d.txt' % split_id
-        with open(osp.join(splits_dir, f_name), 'r') as f:
+        with open(osp.join(split_metadata_dir, f_name), 'r') as f:
             lines = [x.strip() for x in f.readlines()]
 
         parsed_lines = np.asarray(list(map(lambda x: x.split('/'), lines)))
@@ -297,7 +300,7 @@ def test_ucf101(dataset_path, model_ckpt_file, test_tuples_parent_dir,
                 range(len(videos_name))))
             activity_videos = videos_name[activity_videos_indices]
 
-            lbls = _test_videos(model, activity_test_dir, test_videos, sess)
+            lbls = _test_videos(model, activity_test_dir, activity_videos, sess)
             test_labels_all[split_id - 1][activity_id] = lbls
 
     # Compute accuracy metric
