@@ -5,7 +5,7 @@ import sys
 import data_sampling.data_args as data_args
 from nets.two_stream import TwoStreamNet
 import constants as const
-import file_constants as file_const
+import configuration as file_const
 from data_sampling.tuple_loader import TupleLoader
 import numpy as np
 import utils

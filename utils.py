@@ -1,6 +1,6 @@
 import os
 import pickle
-import file_constants as file_const
+import configuration as file_const
 
 def dataset_tuples(dataset_path):
     return dataset_path + '_tuples_class'

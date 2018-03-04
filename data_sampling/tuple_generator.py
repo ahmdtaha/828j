@@ -5,7 +5,7 @@ import utils
 import os
 import cv2
 import constants as const
-import file_constants as file_const
+import configuration as file_const
 import numpy as np
 import imageio
 import multiprocessing as mp

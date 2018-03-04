@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import constants as const
-import file_constants as file_const
+import configuration as file_const
 from tensorflow.python import pywrap_tensorflow
 
 class TwoStreamNet:

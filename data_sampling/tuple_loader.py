@@ -1,7 +1,7 @@
 import sys
 sys.path.append('../')
 import os
-import file_constants as file_const
+import configuration as file_const
 import data_sampling.data_args as data_args
 import constants as const
 import numpy as np
