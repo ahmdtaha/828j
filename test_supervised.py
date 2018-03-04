@@ -1,4 +1,7 @@
-from nets.two_stream import TwoStreamNet
+# from nets.two_stream import TwoStreamNet
+import sys
+sys.path.append('nets')
+from two_stream import TwoStreamNet
 import argparse
 import numpy as np
 import os
