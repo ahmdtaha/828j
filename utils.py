@@ -59,3 +59,7 @@ def get_file_name_ext(inputFilepath):
     filename_w_ext = os.path.basename(inputFilepath)
     filename, file_extension = os.path.splitext(filename_w_ext)
     return filename, file_extension
+
+def get_latest_file(path):
+    files = get_files(path,extension='',append_base=True);
+    return max(files, key=os.path.getctime)

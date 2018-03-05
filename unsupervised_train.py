@@ -7,6 +7,8 @@ from nets.two_stream import TwoStreamNet
 import constants as const
 import configuration as file_const
 from data_sampling.tuple_loader import  TupleLoader
+import utils
+
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
     if args[data_args.gen_nearby_frame]:
@@ -50,7 +52,23 @@ if __name__ == '__main__':
 
     sess = tf.InteractiveSession()
     now = datetime.now()
-    train_writer = tf.summary.FileWriter(file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S"), sess.graph)
+    if (file_const.tensorbaord_file == None):
+        tb_path = file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
+    else:
+        tb_path = file_const.tensorbaord_dir + file_const.tensorbaord_file
+
+    print(tb_path )
+    if(os.path.exists(tb_path )):
+        latest_filepath = utils.get_latest_file(tb_path)
+        print(latest_filepath)
+        tb_iter = tf.train.summary_iterator(latest_filepath)
+        for e in tb_iter:
+            last_step = e.step;
+        print('Continue on previous TB file ',tb_path,' with starting step',last_step);
+    else:
+        print('New TB file *********** ',tb_path);
+        last_step = 0;
+    train_writer = tf.summary.FileWriter(tb_path , sess.graph)
 
     saver = tf.train.Saver()  # saves variables learned during training
     tf.global_variables_initializer().run()
@@ -75,7 +93,7 @@ if __name__ == '__main__':
 
 
 
-    for step in range(const.train_iters):
+    for step in range(last_step,const.train_iters):
 
         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
         model_loss_value,accuracy_value, _ = sess.run([model_loss,model_accuracy,train_op], feed_dict)
