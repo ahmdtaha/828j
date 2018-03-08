@@ -20,6 +20,7 @@ def gen_feed_dict(model,data_generator,subset,fix,args):
 
     return feed_dict;
 
+
 if __name__ == '__main__':
     args = dict()
     args[data_args.gen_nearby_frame] = False;
@@ -46,9 +47,8 @@ if __name__ == '__main__':
 
     train_op = optimizer.apply_gradients(grads)
 
-    variables_names = [v.name for v in tf.trainable_variables()]
-    for var_name in variables_names:
-        print(var_name)
+    for v in tf.trainable_variables():
+        print(v.name , '\t',v.shape)
 
     sess = tf.InteractiveSession()
     now = datetime.now()
@@ -102,7 +102,7 @@ if __name__ == '__main__':
         #print(sess.run(debug_list, feed_dict),feed_dict)
 
         if(step % const.logging_threshold == 0):
-            print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value);
+            print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value, ' Epoch = %2f' % ((step * const.batch_size)/(file_const.epoch_size)));
             if(step != 0):
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
@@ -115,12 +115,12 @@ if __name__ == '__main__':
 
 
                 ## Allow me to inspect true positive and false positive rates
-                feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, 1, args);
-                pos_acc_value = sess.run(pos_acc_op, feed_dict=feed_dict)
+                # feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, 1, args);
+                # pos_acc_value = sess.run(pos_acc_op, feed_dict=feed_dict)
 
                 ## Allow me to inspect true negative and false negative rates
-                feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, -1, args);
-                neg_acc_value  = sess.run(neg_acc_op, feed_dict=feed_dict)
+                # feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, -1, args);
+                # neg_acc_value  = sess.run(neg_acc_op, feed_dict=feed_dict)
 
                 #print(summary)
                 train_writer.add_run_metadata(run_metadata, 'step%03d' % step)
@@ -128,8 +128,8 @@ if __name__ == '__main__':
                 train_writer.add_summary(train_loss_op, step)
                 train_writer.add_summary(val_loss_op, step)
 
-                train_writer.add_summary(pos_acc_value, step)
-                train_writer.add_summary(neg_acc_value, step)
+                # train_writer.add_summary(pos_acc_value, step)
+                # train_writer.add_summary(neg_acc_value, step)
 
                 train_writer.add_summary(accuracy_op, step)
                 train_writer.flush()

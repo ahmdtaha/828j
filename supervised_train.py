@@ -32,7 +32,8 @@ if __name__ == '__main__':
     img_generator.next(const.Subset.TRAIN,None,supervised=True)
 
     load_alex_weights = True;
-    img2vec_model = TwoStreamNet(supervised=True,train_alexnet=True,load_alex_weights=load_alex_weights)
+
+    img2vec_model = TwoStreamNet(supervised=True,load_alex_weights=load_alex_weights,train_spatial_tower = False,train_motion_tower = True)
     model_loss = img2vec_model.supervised_loss
     model_accuracy = img2vec_model.supervised_accuracy
 
@@ -48,9 +49,8 @@ if __name__ == '__main__':
 
     train_op = optimizer.apply_gradients(grads)
 
-    variables_names = [v.name for v in tf.trainable_variables()]
-    for var_name in variables_names:
-        print(var_name)
+    for v in tf.trainable_variables():
+        print(v.name , '\t',v.shape)
 
     sess = tf.InteractiveSession()
     now = datetime.now()
@@ -58,6 +58,19 @@ if __name__ == '__main__':
         tb_path = file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
     else:
         tb_path = file_const.tensorbaord_dir + file_const.tensorbaord_file
+
+    print(tb_path)
+    if (os.path.exists(tb_path)):
+        latest_filepath = utils.get_latest_file(tb_path)
+        print(latest_filepath)
+        tb_iter = tf.train.summary_iterator(latest_filepath)
+        for e in tb_iter:
+            last_step = e.step;
+        print('Continue on previous TB file ', tb_path, ' with starting step', last_step);
+    else:
+        print('New TB file *********** ', tb_path);
+        last_step = 0;
+
     train_writer = tf.summary.FileWriter(tb_path, sess.graph)
     tf.global_variables_initializer().run()
     saver = tf.train.Saver()  # saves variables learned during training
@@ -86,13 +99,14 @@ if __name__ == '__main__':
 
 
 
-    for step in range(const.train_iters):
+    for step in range(last_step,const.train_iters):
 
         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
         model_loss_value,accuracy_value, _ = sess.run([model_loss,model_accuracy,train_op], feed_dict)
 
         if(step % const.logging_threshold == 0):
-            print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value);
+            print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value,
+                  ' Epoch = %2f' % ((step * const.batch_size) / (file_const.epoch_size)));
             if(step != 0):
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
