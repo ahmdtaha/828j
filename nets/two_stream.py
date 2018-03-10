@@ -1,29 +1,37 @@
-import tensorflow as tf
-import numpy as np
+from tensorflow.python import pywrap_tensorflow
 import constants as const
 import file_constants as file_const
-from tensorflow.python import pywrap_tensorflow
+import numpy as np
+import tensorflow as tf
+
 
 class TwoStreamNet:
-    def conv(self,input, kernel, biases, k_h, k_w, c_o, s_h, s_w, padding="VALID", group=1):
+    def conv(self, input, kernel, biases, k_h, k_w, c_o, s_h, s_w,
+             padding="VALID", group=1):
         '''From https://github.com/ethereon/caffe-tensorflow
         '''
         c_i = input.get_shape()[-1]
         assert c_i % group == 0
         assert c_o % group == 0
-        convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
+
+        # convolve = lambda i, k: tf.nn.conv2d(
+        #     i, k, [1, s_h, s_w, 1], padding=padding)
+        def convolve(i, k):
+            return tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
 
         if group == 1:
             conv = convolve(input, kernel)
         else:
-            input_groups = tf.split(input, group, 3)  # tf.split(3, group, input)
-            kernel_groups = tf.split(kernel, group, 3)  # tf.split(3, group, kernel)
-            output_groups = [convolve(i, k) for i, k in zip(input_groups, kernel_groups)]
+            input_groups = tf.split(input, group, 3)
+            kernel_groups = tf.split(kernel, group, 3)
+            output_groups = [convolve(i, k) for i, k in zip(
+                input_groups, kernel_groups)]
             conv = tf.concat(output_groups, 3)  # tf.concat(3, output_groups)
-        return tf.reshape(tf.nn.bias_add(conv, biases), [-1] + conv.get_shape().as_list()[1:])
+        return tf.reshape(tf.nn.bias_add(conv, biases),
+                          [-1] + conv.get_shape().as_list()[1:])
 
-
-    def build_net(self,input,net_data,train_params=True,prefix='',assign_weights=False):
+    def build_net(self, input, net_data, train_params=True, prefix='',
+                  assign_weights=False):
 
         if (prefix == 'cntxt_'):
             c_i = const.context_channels
@@ -32,62 +40,69 @@ class TwoStreamNet:
 
         trainable_params = train_params
         with tf.variable_scope(prefix+"conv1"):
-            k_h = 11;
-            k_w = 11;
+            k_h = 11
+            k_w = 11
 
-
-            c_o = 96;
-            s_h = 4;
+            c_o = 96
+            s_h = 4
             s_w = 4
 
-            conv1W = tf.get_variable(name='conv1W',shape=(k_h,k_h,c_i,c_o),trainable=trainable_params)
+            conv1W = tf.get_variable(name='conv1W', shape=(k_h, k_h, c_i, c_o),
+                                     trainable=trainable_params)
 
-            conv1b = tf.get_variable(name='conv1b',shape=net_data["conv1"][1].shape,trainable=trainable_params)
+            conv1b = tf.get_variable(name='conv1b',
+                                     shape=net_data["conv1"][1].shape,
+                                     trainable=trainable_params)
 
-            conv1_in = self.conv(input, conv1W, conv1b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=1)
+            conv1_in = self.conv(input, conv1W, conv1b, k_h, k_w, c_o, s_h,
+                                 s_w, padding="SAME", group=1)
             conv1 = tf.nn.relu(conv1_in)
             # lrn1
             # lrn(2, 2e-05, 0.75, name='norm1')
-            radius = 2;
-            alpha = 2e-05;
-            beta = 0.75;
+            radius = 2
+            alpha = 2e-05
+            beta = 0.75
             bias = 1.0
-            lrn1 = tf.nn.local_response_normalization(conv1,
-                                                      depth_radius=radius,
-                                                      alpha=alpha,
-                                                      beta=beta,
-                                                      bias=bias)
+            lrn1 = tf.nn.local_response_normalization(
+                conv1, depth_radius=radius, alpha=alpha, beta=beta, bias=bias)
 
-            k_h = 3;
-            k_w = 3;
-            s_h = 2;
-            s_w = 2;
+            k_h = 3
+            k_w = 3
+            s_h = 2
+            s_w = 2
             padding = 'VALID'
-            maxpool1 = tf.nn.max_pool(lrn1, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
+            maxpool1 = tf.nn.max_pool(lrn1, ksize=[1, k_h, k_w, 1],
+                                      strides=[1, s_h, s_w, 1],
+                                      padding=padding)
 
         with tf.variable_scope(prefix+"conv2"):
             # conv2
             # conv(5, 5, 256, 1, 1, group=2, name='conv2')
-            k_h = 5;
-            k_w = 5;
-            c_o = 256;
-            s_h = 1;
-            s_w = 1;
+            k_h = 5
+            k_w = 5
+            c_o = 256
+            s_h = 1
+            s_w = 1
             group = 2
-            #conv2W = tf.Variable(net_data["conv2"][0])
-            conv2W = tf.get_variable(name='conv2W', shape=net_data["conv2"][0].shape, trainable=trainable_params)
+            # conv2W = tf.Variable(net_data["conv2"][0])
+            conv2W = tf.get_variable(name='conv2W',
+                                     shape=net_data["conv2"][0].shape,
+                                     trainable=trainable_params)
 
-            #conv2b = tf.get_variable(net_data["conv2"][1])
-            conv2b = tf.get_variable(name='conv2b', shape=net_data["conv2"][1].shape, trainable=trainable_params)
+            # conv2b = tf.get_variable(net_data["conv2"][1])
+            conv2b = tf.get_variable(name='conv2b',
+                                     shape=net_data["conv2"][1].shape,
+                                     trainable=trainable_params)
 
-            conv2_in = self.conv(maxpool1, conv2W, conv2b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
+            conv2_in = self.conv(maxpool1, conv2W, conv2b, k_h, k_w, c_o, s_h,
+                                 s_w, padding="SAME", group=group)
             conv2 = tf.nn.relu(conv2_in)
 
             # lrn2
             # lrn(2, 2e-05, 0.75, name='norm2')
-            radius = 2;
-            alpha = 2e-05;
-            beta = 0.75;
+            radius = 2
+            alpha = 2e-05
+            beta = 0.75
             bias = 1.0
             lrn2 = tf.nn.local_response_normalization(conv2,
                                                       depth_radius=radius,
@@ -97,84 +112,105 @@ class TwoStreamNet:
 
             # maxpool2
             # max_pool(3, 3, 2, 2, padding='VALID', name='pool2')
-            k_h = 3;
-            k_w = 3;
-            s_h = 2;
-            s_w = 2;
+            k_h = 3
+            k_w = 3
+            s_h = 2
+            s_w = 2
             padding = 'VALID'
-            maxpool2 = tf.nn.max_pool(lrn2, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
+            maxpool2 = tf.nn.max_pool(lrn2, ksize=[1, k_h, k_w, 1],
+                                      strides=[1, s_h, s_w, 1],
+                                      padding=padding)
 
         with tf.variable_scope(prefix+"conv3"):
             # conv3
             # conv(3, 3, 384, 1, 1, name='conv3')
-            k_h = 3;
-            k_w = 3;
-            c_o = 384;
-            s_h = 1;
-            s_w = 1;
+            k_h = 3
+            k_w = 3
+            c_o = 384
+            s_h = 1
+            s_w = 1
             group = 1
             # conv3W = tf.Variable(net_data["conv3"][0])
-            conv3W = tf.get_variable(name='conv3W',shape=net_data["conv3"][0].shape,trainable=trainable_params)
+            conv3W = tf.get_variable(name='conv3W',
+                                     shape=net_data["conv3"][0].shape,
+                                     trainable=trainable_params)
 
             # conv3b = tf.Variable(net_data["conv3"][1])
-            conv3b = tf.get_variable(name='conv3b',shape=net_data["conv3"][1].shape,trainable=trainable_params)
+            conv3b = tf.get_variable(name='conv3b',
+                                     shape=net_data["conv3"][1].shape,
+                                     trainable=trainable_params)
 
-            conv3_in = self.conv(maxpool2, conv3W, conv3b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
+            conv3_in = self.conv(maxpool2, conv3W, conv3b, k_h, k_w, c_o, s_h,
+                                 s_w, padding="SAME", group=group)
             conv3 = tf.nn.relu(conv3_in)
 
         with tf.variable_scope(prefix+"conv4"):
             # conv4
             # conv(3, 3, 384, 1, 1, group=2, name='conv4')
-            k_h = 3;
-            k_w = 3;
-            c_o = 384;
-            s_h = 1;
-            s_w = 1;
+            k_h = 3
+            k_w = 3
+            c_o = 384
+            s_h = 1
+            s_w = 1
             group = 2
             # conv4W = tf.Variable(net_data["conv4"][0])
-            conv4W = tf.get_variable(name='conv4W',shape=net_data["conv4"][0].shape,trainable=trainable_params);
+            conv4W = tf.get_variable(name='conv4W',
+                                     shape=net_data["conv4"][0].shape,
+                                     trainable=trainable_params)
             # conv4b = tf.Variable(net_data["conv4"][1])
-            conv4b = tf.get_variable(name='conv4b',shape=net_data["conv4"][1].shape,trainable=trainable_params)
+            conv4b = tf.get_variable(name='conv4b',
+                                     shape=net_data["conv4"][1].shape,
+                                     trainable=trainable_params)
 
-            conv4_in = self.conv(conv3, conv4W, conv4b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
+            conv4_in = self.conv(conv3, conv4W, conv4b, k_h, k_w, c_o, s_h,
+                                 s_w, padding="SAME", group=group)
             conv4 = tf.nn.relu(conv4_in)
         with tf.variable_scope(prefix+"conv5"):
             # conv5
             # conv(3, 3, 256, 1, 1, group=2, name='conv5')
-            k_h = 3;
-            k_w = 3;
-            c_o = 256;
-            s_h = 1;
-            s_w = 1;
+            k_h = 3
+            k_w = 3
+            c_o = 256
+            s_h = 1
+            s_w = 1
             group = 2
             # conv5W = tf.Variable(net_data["conv5"][0])
             # conv5b = tf.Variable(net_data["conv5"][1])
-            conv5W = tf.get_variable(name='conv5W',shape=net_data["conv5"][0].shape,trainable=trainable_params);
-            conv5b = tf.get_variable(name='conv5b',shape=net_data["conv5"][1].shape,trainable=trainable_params)
+            conv5W = tf.get_variable(name='conv5W',
+                                     shape=net_data["conv5"][0].shape,
+                                     trainable=trainable_params)
+            conv5b = tf.get_variable(name='conv5b',
+                                     shape=net_data["conv5"][1].shape,
+                                     trainable=trainable_params)
 
-            conv5_in = self.conv(conv4, conv5W, conv5b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
+            conv5_in = self.conv(conv4, conv5W, conv5b, k_h, k_w, c_o, s_h,
+                                 s_w, padding="SAME", group=group)
             conv5 = tf.nn.relu(conv5_in)
 
             # maxpool5
             # max_pool(3, 3, 2, 2, padding='VALID', name='pool5')
-            k_h = 3;
-            k_w = 3;
-            s_h = 2;
-            s_w = 2;
+            k_h = 3
+            k_w = 3
+            s_h = 2
+            s_w = 2
             padding = 'VALID'
-            maxpool5 = tf.nn.max_pool(conv5, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
+            maxpool5 = tf.nn.max_pool(conv5, ksize=[1, k_h, k_w, 1],
+                                      strides=[1, s_h, s_w, 1],
+                                      padding=padding)
 
         with tf.variable_scope(prefix+"fc6"):
             fc6_num_units = 128
             # fc6
             # fc6W = tf.Variable(net_data["fc6"][0])
             # fc6b = tf.Variable(net_data["fc6"][1])
-            fc6W = tf.get_variable(name='fc6W',shape=(9216, fc6_num_units),trainable=trainable_params)
-            fc6b = tf.get_variable(name='fc6b', shape=(fc6_num_units,), trainable=trainable_params)
+            fc6W = tf.get_variable(name='fc6W',
+                                   shape=(9216, fc6_num_units),
+                                   trainable=trainable_params)
+            fc6b = tf.get_variable(name='fc6b', shape=(fc6_num_units,),
+                                   trainable=trainable_params)
 
-
-            fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(np.prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
-
+            fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(
+                np.prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
 
         if assign_weights:
             assign_operations = []
@@ -189,20 +225,20 @@ class TwoStreamNet:
             assign_operations.append(conv5W.assign(net_data["conv5"][0]))
             assign_operations.append(conv5b.assign(net_data["conv5"][1]))
 
-            self.assign_operations = assign_operations;
+            self.assign_operations = assign_operations
 
+        return [conv1, conv2, conv3, conv4, conv5, fc6]
 
-        return [conv1,conv2,conv3,conv4,conv5,fc6]
-
-    def rgb_2_bgr(self,rgb):
-        #rgb_scaled = rgb * 255.0
-        rgb_scaled = rgb # I already fit it [0-255]
+    def rgb_2_bgr(self, rgb):
+        # rgb_scaled = rgb * 255.0
+        rgb_scaled = rgb  # I already fit it [0-255]
 
         # Convert RGB to BGR
-        red, green, blue = tf.split(axis=3, num_or_size_splits=3, value=rgb_scaled)
-        #assert red.get_shape().as_list()[1:] == [224, 224, 1]
-        #assert green.get_shape().as_list()[1:] == [224, 224, 1]
-        #assert blue.get_shape().as_list()[1:] == [224, 224, 1]
+        red, green, blue = tf.split(axis=3, num_or_size_splits=3,
+                                    value=rgb_scaled)
+        # assert red.get_shape().as_list()[1:] == [224, 224, 1]
+        # assert green.get_shape().as_list()[1:] == [224, 224, 1]
+        # assert blue.get_shape().as_list()[1:] == [224, 224, 1]
         IMAGENET_MEAN_BGR = [103.062623801, 115.902882574, 123.151630838, ]
         bgr = tf.concat(axis=3, values=[
             blue - IMAGENET_MEAN_BGR[0],
@@ -210,11 +246,11 @@ class TwoStreamNet:
             red - IMAGENET_MEAN_BGR[2],
         ])
 
-        #assert bgr.get_shape().as_list()[1:] == [224, 224, 3]
-        return bgr;
+        # assert bgr.get_shape().as_list()[1:] == [224, 224, 3]
+        return bgr
 
-    def print_tensors_in_checkpoint_file(self,file_name, tensor_name, all_tensors,
-                                         all_tensor_names):
+    def print_tensors_in_checkpoint_file(self, file_name, tensor_name,
+                                         all_tensors, all_tensor_names):
         """Prints tensors in a checkpoint file.
         If no `tensor_name` is provided, prints the tensor names and shapes
         in the checkpoint file.
@@ -223,14 +259,16 @@ class TwoStreamNet:
           file_name: Name of the checkpoint file.
           tensor_name: Name of the tensor in the checkpoint file to print.
           all_tensors: Boolean indicating whether to print all tensors.
-          all_tensor_names: Boolean indicating whether to print all tensor names.
+          all_tensor_names: Boolean indicating whether to print all tensor
+          names.
         """
         try:
             reader = pywrap_tensorflow.NewCheckpointReader(file_name)
             if all_tensors or all_tensor_names:
                 var_to_shape_map = reader.get_variable_to_shape_map()
                 for key in sorted(var_to_shape_map):
-                    print("tensor_name: ", key, np.mean(reader.get_tensor(key)))
+                    print("tensor_name: ", key, np.mean(
+                        reader.get_tensor(key)))
                     if all_tensors:
                         print(reader.get_tensor(key))
             elif not tensor_name:
@@ -241,135 +279,156 @@ class TwoStreamNet:
         except Exception as e:  # pylint: disable=broad-except
             print(str(e))
             if "corrupted compressed block contents" in str(e):
-                print("It's likely that your checkpoint file has been compressed "
-                      "with SNAPPY.")
+                print("It's likely that your checkpoint file has been "
+                      "compressed with SNAPPY.")
             if ("Data loss" in str(e) and
-                    (any([e in file_name for e in [".index", ".meta", ".data"]]))):
+                (any([e2 in file_name for e2 in [
+                    ".index", ".meta", ".data"]]))):
                 proposed_file = ".".join(file_name.split(".")[0:-1])
                 v2_file_error_template = """
-    It's likely that this is a V2 checkpoint and you need to provide the filename
-    *prefix*.  Try removing the '.' and extension.  Try:
+    It's likely that this is a V2 checkpoint and you need to provide the
+    filename *prefix*.  Try removing the '.' and extension.  Try:
     inspect checkpoint --file_name = {}"""
 
             print(v2_file_error_template.format(proposed_file))
 
-    def load_pretrained(self,sess, ckpt_file):
+    def load_pretrained(self, sess, ckpt_file):
 
-        ## When I swicth from unsupervised learning to supervised learning, no supervised layer weights in the model.
-        ## So load the trained layer weights are stored while supervised layer weights are ignored
+        # When I swicth from unsupervised learning to supervised learning, no
+        # supervised layer weights in the model. So load the trained layer
+        # weights are stored while supervised layer weights are ignored
         all_variables = tf.get_collection_ref(tf.GraphKeys.GLOBAL_VARIABLES)
         reader = pywrap_tensorflow.NewCheckpointReader(ckpt_file)
         ckpt_vars = reader.get_variable_to_shape_map()
         ckpt_variables = ckpt_vars.keys()
-        common_variables = [];
+        common_variables = []
 
         for v_old in ckpt_variables:
             for v in all_variables:
                 if(v.name[:-2] == v_old):
-                    if(v_old == 'supervised_fc/supervised_fc_256/bias' or v_old == 'supervised_fc/supervised_fc_256/kernel' or
-                               v_old == 'supervised_fc/supervised_fc/kernel' or v_old == 'supervised_fc/supervised_fc/bias'):
-                        break;
+                    if(v_old == 'supervised_fc/supervised_fc_256/bias' or
+                       v_old == 'supervised_fc/supervised_fc_256/kernel' or
+                       v_old == 'supervised_fc/supervised_fc/kernel' or
+                       v_old == 'supervised_fc/supervised_fc/bias'):
+                        break
                     else:
-                        common_variables.append(v);
-                        break;
-
+                        common_variables.append(v)
+                        break
 
         temp_saver = tf.train.Saver(var_list=common_variables)
         temp_saver.restore(sess, ckpt_file)
 
-
-
-    def print_means(self,sess):
+    def print_means(self, sess):
         vars = [v for v in tf.trainable_variables()]
         for var in vars:
-            var_value =sess.run(var)
-            print(var_value.shape,np.mean(var_value))
+            var_value = sess.run(var)
+            print(var_value.shape, np.mean(var_value))
         print('===================================================')
 
+    def inspect_output(self, sess, feeddict):
+        word_dense, context_dense = sess.run([self.fcf_word_dense,
+                                             self.fcf_context_dense], feeddict)
+        print(np.mean(word_dense), np.mean(context_dense))
 
-    def inspect_output(self,sess,feeddict):
-        word_dense, context_dense = sess.run([self.fcf_word_dense,self.fcf_context_dense], feeddict)
-        print(np.mean(word_dense),np.mean(context_dense ))
-
-
-    def __init__(self,supervised=False,train_alexnet=True,load_alex_weights=False):
-        net_data = np.load(open(file_const.model_weights_filepath, "rb"), encoding="latin1").item()
+    def __init__(self, supervised=False, train_alexnet=True,
+                 load_alex_weights=False):
+        net_data = np.load(open(file_const.model_weights_filepath, "rb"),
+                           encoding="latin1").item()
 
         batch_size = None
-        self.input_words = tf.placeholder(tf.float32,
-                                          shape=(
-                                          batch_size, const.frame_height, const.frame_width, const.frame_channels),
-                                          name='words_input')
+        self.input_words = tf.placeholder(
+            tf.float32, shape=(batch_size, const.frame_height,
+                               const.frame_width, const.frame_channels),
+            name='words_input')
 
-        self.input_context = tf.placeholder(tf.float32,
-                                            shape=(
-                                            batch_size, const.frame_height, const.frame_width, const.context_channels),
-                                            name='context_input')
+        self.input_context = tf.placeholder(
+            tf.float32, shape=(batch_size, const.frame_height,
+                               const.frame_width, const.context_channels),
+            name='context_input')
 
         num_classes = file_const.num_classes
-        self.supervised_labels = tf.placeholder(tf.int32, shape=(batch_size, num_classes), name='class_lbls')
-        self.unsupervised_labels = tf.placeholder(tf.int32, shape=(batch_size, 2), name='gt_lbls')
+        self.supervised_labels = tf.placeholder(tf.int32, shape=(
+            batch_size, num_classes), name='class_lbls')
+        self.unsupervised_labels = tf.placeholder(
+            tf.int32, shape=(batch_size, 2), name='gt_lbls')
 
         words = self.rgb_2_bgr(self.input_words)
         context = self.input_context
 
+        with tf.variable_scope("siamese", reuse=tf.AUTO_REUSE):
+            self.layers1 = self.build_net(
+                words, net_data, train_params=train_alexnet, prefix='word_',
+                assign_weights=load_alex_weights)
+            self.fcf_word_dense = self.layers1[-1]
+            # fc8 = self.layers1[-1]
 
+            self.layers2 = self.build_net(
+                context, net_data, train_params=train_alexnet, prefix='cntxt_')
+            self.fcf_context_dense = self.layers2[-1]
 
-        with tf.variable_scope("siamese",reuse=tf.AUTO_REUSE) as scope:
-            self.layers1 = self.build_net(words, net_data,train_params=train_alexnet,prefix='word_',assign_weights=load_alex_weights)
-            self.fcf_word_dense= self.layers1[-1]
-            #fc8 = self.layers1[-1]
+        # self.prob = tf.nn.softmax(fc8)
 
-            self.layers2 =  self.build_net(context, net_data,train_params=train_alexnet,prefix='cntxt_')
-            self.fcf_context_dense = self.layers2[-1];
-
-
-        #self.prob = tf.nn.softmax(fc8)
-
-
-
-        # fv_equal = tf.equal(word_dense2,context_dense2)
+        # fv_equal = tf.equal(word_dense2, context_dense2)
         # fv_correct_prediction = tf.cast(fv_equal, tf.float32)
         # self.fv_accuracy = tf.reduce_sum(fcf_word_dense - fcf_context_dense)
 
-        #dense = tf.concat([self.fcf_word_dense, self.fcf_context_dense], 1,name='embedding')
+        # dense = tf.concat([self.fcf_word_dense, self.fcf_context_dense], 1,
+        #                   name='embedding')
         fusion_layer = self.fcf_word_dense - self.fcf_context_dense
 
+        # # TODO: open question: The weights of the following FC layers?
 
+        # # *********************** Supervised **********************# #
+        with tf.variable_scope("supervised_fc"):
+            supervised_fc7 = tf.layers.dense(
+                inputs=fusion_layer, units=128, name='supervised_fc_256',
+                activation=tf.nn.relu, trainable=supervised)
+            supervised_fc8 = tf.layers.dense(
+                inputs=supervised_fc7, units=128, name='supervised_fc_128',
+                activation=tf.nn.relu, trainable=supervised)
+            supervised_logits = tf.layers.dense(
+                inputs=supervised_fc8, units=num_classes, name='supervised_fc',
+                trainable=supervised)
 
-        ## The weights of the following FC layers are still <<<<<< OPEN QUESTION >>>>>>
-
-        ## *********************** Supervised **********************##
-        with tf.variable_scope("supervised_fc") as scope:
-            supervised_fc7 = tf.layers.dense(inputs=fusion_layer, units=128, name='supervised_fc_256', activation=tf.nn.relu,trainable=supervised);
-            supervised_fc8 = tf.layers.dense(inputs=supervised_fc7, units=128, name='supervised_fc_128', activation=tf.nn.relu,trainable=supervised);
-            supervised_logits = tf.layers.dense(inputs=supervised_fc8 , units=num_classes, name='supervised_fc',trainable=supervised)
-
-        with tf.variable_scope("supervised_loss") as scope:
-            supervised_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.supervised_labels, logits=supervised_logits, name='xentropy')
+        with tf.variable_scope("supervised_loss"):
+            supervised_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+                labels=self.supervised_labels, logits=supervised_logits,
+                name='xentropy')
             self.supervised_logits = tf.nn.softmax(supervised_logits)
-            self.supervised_loss = tf.reduce_mean(supervised_cross_entropy, name='xentropy_mean')
+            self.supervised_loss = tf.reduce_mean(supervised_cross_entropy,
+                                                  name='xentropy_mean')
 
         with tf.name_scope('supervised_accuracy'):
             self.class_prediction = tf.argmax(supervised_logits, 1)
-            supervised_correct_prediction = tf.equal(tf.argmax(self.supervised_labels, 1), self.class_prediction )
-            self.supervised_correct_prediction = tf.cast(supervised_correct_prediction, tf.float32)
-            self.supervised_accuracy = tf.reduce_mean(self.supervised_correct_prediction)
+            supervised_correct_prediction = tf.equal(tf.argmax(
+                self.supervised_labels, 1), self.class_prediction)
+            self.supervised_correct_prediction = tf.cast(
+                supervised_correct_prediction, tf.float32)
+            self.supervised_accuracy = tf.reduce_mean(
+                self.supervised_correct_prediction)
 
-        ## *********************** Unsupervised **********************##
-        with tf.variable_scope("unsupervised_fc") as scope:
-            unsupervised_fc7 = tf.layers.dense(inputs=fusion_layer, units=128, name='fc_256', activation=tf.nn.relu,trainable=not supervised);
-            unsupervised_fc8 = tf.layers.dense(inputs=unsupervised_fc7 , units=128, name='fc_128', activation=tf.nn.relu,trainable=not supervised);
-            unsupervised_logits = tf.layers.dense(inputs=unsupervised_fc8 , units=2, name='fc_2',trainable=not supervised)
+        # # *********************** Unsupervised **********************# #
+        with tf.variable_scope("unsupervised_fc"):
+            unsupervised_fc7 = tf.layers.dense(
+                inputs=fusion_layer, units=128, name='fc_256',
+                activation=tf.nn.relu, trainable=not supervised)
+            unsupervised_fc8 = tf.layers.dense(
+                inputs=unsupervised_fc7, units=128, name='fc_128',
+                activation=tf.nn.relu, trainable=not supervised)
+            unsupervised_logits = tf.layers.dense(
+                inputs=unsupervised_fc8, units=2, name='fc_2',
+                trainable=not supervised)
 
-        with tf.variable_scope("unsupervised_loss") as scope:
-            cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.unsupervised_labels, logits=unsupervised_logits , name='xentropy')
-            self.logits = tf.nn.softmax(unsupervised_logits )
+        with tf.variable_scope("unsupervised_loss"):
+            cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+                labels=self.unsupervised_labels, logits=unsupervised_logits,
+                name='xentropy')
+            self.logits = tf.nn.softmax(unsupervised_logits)
             self.loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
         with tf.name_scope('unsupervised_accuracy'):
-            correct_prediction = tf.equal(tf.argmax(self.unsupervised_labels, 1), tf.argmax(unsupervised_logits , 1))
+            correct_prediction = tf.equal(tf.argmax(
+                self.unsupervised_labels, 1), tf.argmax(
+                unsupervised_logits, 1))
             self.correct_prediction = tf.cast(correct_prediction, tf.float32)
             self.accuracy = tf.reduce_mean(self.correct_prediction)
-
-
