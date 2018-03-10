@@ -5,6 +5,9 @@ import numpy as np
 import tensorflow as tf
 
 
+# TODO: @Taha: note that you're using the VGG-M-2048 architecture from TSv1,
+# while in TSv2, they show that using the deeper VGG-16 yields a 3-5%
+# imporvement.
 class TwoStreamNet:
     def conv(self, input, kernel, biases, k_h, k_w, c_o, s_h, s_w,
              padding="VALID", group=1):
@@ -195,6 +198,9 @@ class TwoStreamNet:
             fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(
                 np.prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
 
+        # FIXME: @Taha: you should initialize ALL layers (including FC layers)
+        # TODO: @Taha: what do you do with "self.assign_operations" I don't
+        # really understand this code.
         if assign_weights:
             assign_operations = []
             assign_operations.append(conv1W.assign(net_data["conv1"][0]))
@@ -357,6 +363,8 @@ class TwoStreamNet:
         else:
             fc6_num_units = 128
 
+        # FIXME: @Taha: i think reuse should be false! The 2 streams should be
+        # independent!
         with tf.variable_scope("siamese", reuse=tf.AUTO_REUSE):
             self.layers1 = self.build_net(
                 words, net_data, train_params=train_spatial_tower,
@@ -365,15 +373,32 @@ class TwoStreamNet:
             self.fcf_word_dense = self.layers1[-1]
             # fc8 = self.layers1[-1]
 
+            # TODO: @Taha: note that in TSv1, they say that the temporal stream
+            # differs from the spatial stream in that it doesn't perform the
+            # local response normalization at conv2 only to reduce memory
+            # consumption.
+            # TODO: a related issue is that they use a batch-size of 256, while
+            # you only use a batch-size of 10. I'm not sure if this won't make
+            # a difference in the training (unless possibly if we were using
+            # batch-nrom, but we don't any way), but this will definitely mean
+            # that one iteration in their training should correspond to 25
+            # iterations in our training.
             self.layers2 = self.build_net(
                 context, net_data, train_params=train_motion_tower,
                 prefix='cntxt_', fc6_num_units=fc6_num_units)
             self.fcf_context_dense = self.layers2[-1]
 
+        # TODO: @Taha: why subtraction instead of sum (which was used in TSv2)?
+        # I understand that both are theoretically the same, but I was just
+        # wondering.
+        # FIXME: @Taha: why fusing at FC6?
         fusion_layer = self.fcf_word_dense - self.fcf_context_dense
 
         # The weights of the following FC layers are still << OPEN QUESTION >>
         if supervised:
+            # TODO: @Taha: in TSv1, FC7 is 2048. FC6 is the one with 4096 units
+            # TODO: @Taha: in TSv1, there is no FC8, although there is one (but
+            # with no details in TSv2.
             num_units = 4096
             # *********************** Supervised ********************** #
             with tf.variable_scope("supervised_fc"):
