@@ -1,6 +1,9 @@
 import os
 import pickle
-import file_constants as file_const
+import configuration as file_const
+
+def get_last_part(path):
+    return os.path.basename(os.path.normpath(path))
 
 def dataset_tuples(dataset_path):
     return dataset_path + '_tuples_class'
@@ -59,3 +62,7 @@ def get_file_name_ext(inputFilepath):
     filename_w_ext = os.path.basename(inputFilepath)
     filename, file_extension = os.path.splitext(filename_w_ext)
     return filename, file_extension
+
+def get_latest_file(path):
+    files = get_files(path,extension='',append_base=True);
+    return max(files, key=os.path.getctime)

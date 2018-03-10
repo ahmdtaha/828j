@@ -1,7 +1,7 @@
 import sys
 sys.path.append('../')
 import os
-import file_constants as file_const
+import configuration as file_const
 import data_sampling.data_args as data_args
 import constants as const
 import numpy as np
@@ -88,6 +88,110 @@ class TupleLoader:
 
 
         return stack_diff
+
+    def hot_one_vector(self,y, max):
+        labels_hot_vector = np.zeros((y.shape[0], max))
+        labels_hot_vector[np.arange(y.shape[0]), y] = 1
+        return labels_hot_vector
+
+    def unsupervised_next2(self, subset, fix_label=None):
+        subset_name = ''
+        subset_size = 0
+        if (subset == const.Subset.TRAIN):
+            subset_name = 'train'
+            subset_size = self._num_training
+            class_lbls = self.train_lbls_ary
+            ratio = 3
+        elif (subset == const.Subset.VAL):
+            subset_name = 'val'
+            subset_size = self._num_val
+            class_lbls = self.val_lbls_ary
+            ratio = 2;
+        elif (subset == const.Subset.TEST):
+            img_set = self._test_activities
+
+        pos_tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
+        neg_tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
+
+        words = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.frame_channels))
+        contexts = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.context_channels))
+        if self._gen_nearby_frame:
+            nearby = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.frame_channels))
+
+        labels = np.zeros((const.batch_size), dtype=np.int32)
+        postive_ratio = 1 / ratio;
+        if (fix_label == None):
+            sampling_ratio = np.random.rand(const.batch_size);
+        elif (fix_label == 1):
+            sampling_ratio = np.zeros(const.batch_size);
+        elif (fix_label == -1):
+            sampling_ratio = np.random.rand(const.batch_size) * (1 - postive_ratio) + postive_ratio;
+        neg_count = 0
+        pos_count = 0
+        order_neg_count = 0
+        verbose_in_dump = False;
+        for batch_idx in np.arange(0, const.batch_size):
+            if (sampling_ratio[batch_idx] < 0.25):
+                ## Same Image , Ordered
+                labels[batch_idx] = 0;
+                if (class_lbls[pos_tuple[batch_idx]] != -1):
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name, batch_idx=batch_idx,
+                                                               lbl=1, verbose=verbose_in_dump)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,
+                                                                  batch_idx=batch_idx, lbl=1, verbose=verbose_in_dump)
+                else:
+                    print("Something wrong with tuple", pos_tuple[batch_idx], file=sys.stderr)
+                    words[batch_idx, :, :] = self.img_at_index(0, subset_name)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name)
+            elif(sampling_ratio[batch_idx] < 0.5):
+                ## Same Image , UnOrdered
+                labels[batch_idx] = 1;
+
+                if (class_lbls[pos_tuple[batch_idx]] != -1):
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name, batch_idx=batch_idx,
+                                                               lbl=1, verbose=verbose_in_dump)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(pos_tuple[batch_idx], subset_name,ordered=False,
+                                                                  batch_idx=batch_idx, lbl=1, verbose=verbose_in_dump)
+                else:
+                    print("Something wrong with tuple", pos_tuple[batch_idx], file=sys.stderr)
+                    words[batch_idx, :, :] = self.img_at_index(0, subset_name)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(0, subset_name,ordered=False)
+
+            elif (sampling_ratio[batch_idx] < 0.75):
+                ## Different Image , Ordered
+                labels[batch_idx] = 2;
+                if (class_lbls[pos_tuple[batch_idx]] != -1):
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name, batch_idx=batch_idx,
+                                                               lbl=0, verbose=verbose_in_dump)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(neg_tuple[batch_idx], subset_name,
+                                                                  batch_idx=batch_idx, lbl=0,
+                                                                  verbose=verbose_in_dump)
+
+                else:
+                    print("Something wrong with tuple", pos_tuple[batch_idx], file=sys.stderr)
+                    words[batch_idx, :, :] = self.img_at_index(0, subset_name)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(1, subset_name, ordered=True)
+
+
+            else:
+                ## Different Image , UnOrdered
+                labels[batch_idx] = 3;
+                if (class_lbls[pos_tuple[batch_idx]] != -1):
+                    words[batch_idx, :, :] = self.img_at_index(pos_tuple[batch_idx], subset_name, batch_idx=batch_idx,
+                                                               lbl=0, verbose=verbose_in_dump)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(neg_tuple[batch_idx], subset_name, ordered=False,
+                                                                  batch_idx=batch_idx, lbl=0,
+                                                                  verbose=verbose_in_dump)
+                else:
+                    print("Something wrong with tuple", pos_tuple[batch_idx], file=sys.stderr)
+                    words[batch_idx, :, :] = self.img_at_index(0, subset_name)
+                    contexts[batch_idx, :, :] = self.pkl_at_index(1, subset_name, ordered=False)
+
+        # print(pos_count,neg_count,order_neg_count)
+
+
+        labels_hot_vector = self.hot_one_vector(labels,4);
+        return words, contexts, labels_hot_vector
 
     def unsupervised_next(self,subset, fix_label=None):
         subset_name = ''
@@ -224,14 +328,9 @@ class TupleLoader:
         if(supervised):
             return self.supervised_next(subset, fix_label)
         else:
-            return self.unsupervised_next(subset, fix_label)
+            return self.unsupervised_next2(subset, fix_label)
 
 def save_pkls(prefix, context,lbls,suffix):
-
-
-    # for filename in filenames:
-    #
-    # imageio.mimsave('/path/to/movie.gif', images)
 
     for i in range(context.shape[0]):
         current_cntxt = np.reshape(context[i], (const.frame_height, const.frame_width, 5))
@@ -266,10 +365,10 @@ if __name__ == '__main__':
     vdz_dataset = TupleLoader(args);
     import time
     start_time = time.time()
-    words, contexts, lbls = vdz_dataset.next(const.Subset.VAL,fix_label=-1,supervised=False)
+    words, contexts, lbls = vdz_dataset.next(const.Subset.VAL,fix_label=None,supervised=False)
     elapsed_time = time.time() - start_time
     print('elapsed_time :', elapsed_time)
-    ## Some visualization for debugging purpose
-    #save_imgs('tuple_',words,lbls,'_img');
-    #save_pkls('tuple_', contexts, lbls, '_pkl');
+    # Some visualization for debugging purpose
+    save_imgs('tuple_',words,lbls,'_img');
+    save_pkls('tuple_', contexts, lbls, '_pkl');
     print('Done')
