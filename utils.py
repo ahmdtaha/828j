@@ -1,9 +1,11 @@
 import os
 import pickle
-import configuration as file_const
+
 
 def get_last_part(path):
     return os.path.basename(os.path.normpath(path))
+
+import configuration as file_const
 
 def dataset_tuples(dataset_path):
     return dataset_path + '_tuples_class'

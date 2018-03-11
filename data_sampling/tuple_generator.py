@@ -1,11 +1,12 @@
 import sys
 sys.path.append('../')
 import data_sampling.motion_aware as motion_aware
+import configuration as file_const
 import utils
 import os
 import cv2
 import constants as const
-import configuration as file_const
+
 import numpy as np
 import imageio
 import multiprocessing as mp
