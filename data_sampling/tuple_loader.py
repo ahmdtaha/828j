@@ -357,7 +357,7 @@ def save_pkls(prefix, context,lbls,suffix):
 def save_imgs(prefix, imgs,lbls,suffix):
     for i in range(imgs.shape[0]):
         print(file_const.dump_path )
-        cv2.imwrite(file_const.dump_path + prefix + str(i) + '_' + str(lbls[i]) + suffix+'.png',
+        cv2.imwrite(file_const.dump_path + prefix + str(i) + '_' + str(np.argmax(lbls[i])) + suffix+'.png',
                     np.reshape(imgs[i], (const.frame_height, const.frame_width, const.frame_channels)))
 
 
@@ -370,7 +370,7 @@ if __name__ == '__main__':
     vdz_dataset = TupleLoader(args);
     import time
     start_time = time.time()
-    words, contexts, lbls = vdz_dataset.next(const.Subset.VAL,fix_label=None,supervised=False)
+    words, contexts, lbls = vdz_dataset.next(const.Subset.VAL,fix_label=None,supervised=True)
     elapsed_time = time.time() - start_time
     print('elapsed_time :', elapsed_time)
     # Some visualization for debugging purpose

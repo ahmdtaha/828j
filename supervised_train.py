@@ -16,7 +16,7 @@ def gen_feed_dict(model,data_generator,subset,fix,args):
         feed_dict = {model.input_words: words,model.nearby_words: nearby, model.input_context: context, model.supervised_labels: lbl}
     else:
         words, context, lbl = data_generator.next(subset,fix,supervised=True)
-        feed_dict = {model.input_words: words, model.input_context:np.zeros(context.shape) , model.supervised_labels: lbl}
+        feed_dict = {model.input_words: words, model.input_context:context , model.supervised_labels: lbl}
 
     return feed_dict;
 
@@ -71,6 +71,7 @@ if __name__ == '__main__':
         print('New TB file *********** ', tb_path);
         last_step = 0;
 
+
     train_writer = tf.summary.FileWriter(tb_path, sess.graph)
     tf.global_variables_initializer().run()
     saver = tf.train.Saver()  # saves variables learned during training
@@ -92,6 +93,7 @@ if __name__ == '__main__':
     elif load_alex_weights:
         print('Loading img2vec_model.assign_operations:',len(img2vec_model.assign_operations));
         sess.run(img2vec_model.assign_operations);
+
 
     train_loss = tf.summary.scalar('Train Loss', model_loss)
     val_loss = tf.summary.scalar('Val Loss', model_loss)
