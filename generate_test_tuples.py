@@ -90,26 +90,37 @@ def _create_stack_of_diffs(video, frame_indices):
     """
     num_frames = len(frame_indices)
     stack_of_diffs = np.zeros((const.frame_height, const.frame_width,
-                               num_frames - 1), dtype=np.int32)
+                               num_frames - 1))
 
-    prev_frame = _get_standard_frame(video, frame_indices[0])
-    # dbg_rgb_path = str(frame_indices[0]) + '_rgb.png'
-    # cv2.imwrite(dbg_rgb_path, cv2.cvtColor(prev_frame, cv2.COLOR_RGB2BGR))
-    prev_frame = cv2.cvtColor(prev_frame, cv2.COLOR_RGB2GRAY)
-    # dbg_gray_path = str(frame_indices[0]) + '_gray.png'
-    # cv2.imwrite(dbg_gray_path, prev_frame)
-    for ii in range(1, num_frames):
-        frame = _get_standard_frame(video, frame_indices[ii])
-        # dbg_rgb_path = str(frame_indices[ii]) + '_rgb.png'
-        # cv2.imwrite(dbg_rgb_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-        # dbg_gray_path = str(frame_indices[ii]) + '_gray.png'
-        # cv2.imwrite(dbg_gray_path, frame)
-        stack_of_diffs[:, :, ii - 1] = frame.astype(
-            np.int32) - prev_frame.astype(np.int32)
-        # dbg_diff_path = str(frame_indices[ii]) + '_diff.png'
-        # cv2.imwrite(dbg_diff_path, np.squeeze(stack_of_diffs[:, :, ii - 1]))
-        prev_frame = frame
+    ## Temporary change the stack of diff to be  current - next
+    for i in range(num_frames - 1):
+        current_frame = _get_standard_frame(video, frame_indices[i])
+        current_frame = cv2.cvtColor(current_frame, cv2.COLOR_RGB2GRAY)
+
+        next_frame = _get_standard_frame(video, frame_indices[i+1])
+        next_frame= cv2.cvtColor(next_frame, cv2.COLOR_RGB2GRAY)
+
+        stack_of_diffs[:, :, i] = current_frame.astype(np.int32) - next_frame.astype(np.int32);
+
+
+    # prev_frame = _get_standard_frame(video, frame_indices[0])
+    # # dbg_rgb_path = str(frame_indices[0]) + '_rgb.png'
+    # # cv2.imwrite(dbg_rgb_path, cv2.cvtColor(prev_frame, cv2.COLOR_RGB2BGR))
+    # prev_frame = cv2.cvtColor(prev_frame, cv2.COLOR_RGB2GRAY)
+    # # dbg_gray_path = str(frame_indices[0]) + '_gray.png'
+    # # cv2.imwrite(dbg_gray_path, prev_frame)
+    # for ii in range(1, num_frames):
+    #     frame = _get_standard_frame(video, frame_indices[ii])
+    #     # dbg_rgb_path = str(frame_indices[ii]) + '_rgb.png'
+    #     # cv2.imwrite(dbg_rgb_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+    #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+    #     # dbg_gray_path = str(frame_indices[ii]) + '_gray.png'
+    #     # cv2.imwrite(dbg_gray_path, frame)
+    #     stack_of_diffs[:, :, ii - 1] = frame.astype(
+    #         np.int32) - prev_frame.astype(np.int32)
+    #     # dbg_diff_path = str(frame_indices[ii]) + '_diff.png'
+    #     # cv2.imwrite(dbg_diff_path, np.squeeze(stack_of_diffs[:, :, ii - 1]))
+    #     prev_frame = frame
 
     return stack_of_diffs
 
