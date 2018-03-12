@@ -171,7 +171,7 @@ def _split_into_test_tuples(video_path, num_frames=6, step=15):
             break
 
     # Generate center frames and stacks of differences
-    center_frames_indices = map(lambda x: (x[-1] - x[0]) // 2, chunks)
+    center_frames_indices = map(lambda x: (x[-1] + x[0]) // 2, chunks)
     center_frames = list(map(lambda x: _get_standard_frame(video, x),
                              center_frames_indices))
     # stacks_of_diffs = list(map(lambda x: _create_stack_of_diffs(video, x),
