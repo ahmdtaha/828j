@@ -155,11 +155,11 @@ def _split_into_test_tuples(video_path, num_frames=6, step=15):
     # Non-overlapping chunks: e.g. if step = 15, then:
     # [1,16,31,46,61,76]--[77,92,107,122,137,152]--[153,...]--...
     chunks = []
-    start_frame = 1
+    start_frame = 0
     while start_frame <= total_num_frames:
         chunk = np.arange(
             start_frame, start_frame + (num_frames - 1) * step + 1, step)
-        if chunk[-1] <= total_num_frames:
+        if chunk[-1] < total_num_frames:
             chunks.append(chunk)
             start_frame = chunk[-1] + 1
         else:
