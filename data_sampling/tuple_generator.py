@@ -84,6 +84,7 @@ def save_tuple(vid,center_frame_idx,stack_diff_frame_idz,save_dir,tuple_idx,lbls
 
 if __name__ == '__main__':
     dataset_path = utils.get_dataset_path(file_const.dataset_name)
+    split_id = 1;
     pkls_path = dataset_path+'_pkls'
     save_dir = dataset_path+'_tuples_class'
 
@@ -103,12 +104,12 @@ if __name__ == '__main__':
         current_subset = 1 ## Val
 
     if(current_subset == const.Subset.TRAIN.value):
-        files_list = utils.txt_read(os.path.join(dataset_path+'_lists','trainlist.txt'))
+        files_list = utils.txt_read(os.path.join(dataset_path+'_lists','subtrainlist%02d.txt' % (split_id,)))
         print('**** Train has ', len(files_list))
         save_dir = os.path.join(save_dir,'train')
         max_num_tuplex = 2000 ##200000
     elif(current_subset == const.Subset.VAL.value):
-        files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'vallist.txt'))
+        files_list = utils.txt_read(os.path.join(dataset_path + '_lists', 'subvallist%02d.txt' % (split_id,)))
         print('**** Val has ', len(files_list))
         save_dir = os.path.join(save_dir, 'val')
         max_num_tuplex =  100 ## 20000
@@ -139,6 +140,7 @@ if __name__ == '__main__':
     queues = [None] * queue_size
     processes = [None] * queue_size
     idx = 0
+    generate_high_motion_tuples = False
     while tuple_idx< max_num_tuplex:
         if ( lbls_ary[tuple_idx] != -1):
             tuple_idx +=1
@@ -156,10 +158,13 @@ if __name__ == '__main__':
             traceback.print_exc()
             continue
 
-        pkl_file = os.path.join(pkls_path,activity,name)+'.pkl'
-        flow_mag = utils.pkl_read(pkl_file)
+        if generate_high_motion_tuples:
+            pkl_file = os.path.join(pkls_path,activity,name)+'.pkl'
+            flow_mag = utils.pkl_read(pkl_file)
+            center_frame_idx, stack_diff_frame_idz = motion_aware.sample_high_motion_frames(vid, flow_mag, vdx_path)
+        else:
+            center_frame_idx, stack_diff_frame_idz = motion_aware.sample_rand_motion_frames(vid,vdx_path)
 
-        center_frame_idx, stack_diff_frame_idz = motion_aware.sample_high_motion_frames(vid, flow_mag,vdx_path)
         if(center_frame_idx is not None):
 
             # save_tuple(vid, center_frame_idx, stack_diff_frame_idz, save_dir, tuple_idx, lbls_ary, activity_lbl)

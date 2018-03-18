@@ -186,7 +186,8 @@ def test_hmdb51(dataset_path, model_ckpt_file, test_tuples_parent_dir,
 # FIXME: 2) how to construct the corresponding arch to the target dataset?!
 # it should be passed as a parameter, not coded in file constans.num_classes
 # FIXME: 3) batch size needs to be passed as a parameter! (@test sz=1)
-    model = TwoStreamNet(supervised=True, train_alexnet=False)
+
+    model = TwoStreamNet(supervised=True)
     # sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver()
     # saver = tf.train.import_meta_graph(model_arch_path)
@@ -260,7 +261,7 @@ def test_ucf101(dataset_path, model_ckpt_file, test_tuples_parent_dir,
 # FIXME: 2) how to construct the corresponding arch to the target dataset?!
 # it should be passed as a parameter, not coded in file constans.num_classes
 # FIXME: 3) batch size needs to be passed as a parameter! (@test sz=1)
-    model = TwoStreamNet(supervised=True, train_alexnet=False)
+    model = TwoStreamNet(supervised=True)
     # sess.run(tf.global_variables_initializer())
     saver = tf.train.Saver()
     # saver = tf.train.import_meta_graph(model_arch_path)
