@@ -16,7 +16,7 @@ def gen_feed_dict(model,data_generator,subset,fix,args):
         feed_dict = {model.input_words: words,model.nearby_words: nearby, model.input_context: context, model.supervised_labels: lbl}
     else:
         words, context, lbl = data_generator.next(subset,fix,supervised=True)
-        feed_dict = {model.input_words: words, model.input_context:np.zeros(context.shape) , model.supervised_labels: lbl}
+        feed_dict = {model.input_words: words, model.input_context:context , model.supervised_labels: lbl}
 
     return feed_dict;
 
@@ -71,6 +71,7 @@ if __name__ == '__main__':
         print('New TB file *********** ', tb_path);
         last_step = 0;
 
+
     train_writer = tf.summary.FileWriter(tb_path, sess.graph)
     tf.global_variables_initializer().run()
     saver = tf.train.Saver()  # saves variables learned during training
@@ -92,6 +93,7 @@ if __name__ == '__main__':
     elif load_alex_weights:
         print('Loading img2vec_model.assign_operations:',len(img2vec_model.assign_operations));
         sess.run(img2vec_model.assign_operations);
+
 
     train_loss = tf.summary.scalar('Train Loss', model_loss)
     val_loss = tf.summary.scalar('Val Loss', model_loss)
@@ -118,16 +120,16 @@ if __name__ == '__main__':
                 val_loss_op,accuracy_op= sess.run([val_loss,model_acc_op], feed_dict=feed_dict)
 
 
-                if(step % 1000 == 0):
-                    ## Inspect true positive (TP), FP, TN, TP per class
-                    val_acc= np.zeros((file_const.num_classes,file_const.num_classes));
-                    for class_i in range(file_const.num_classes):
-                        feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, class_i, args);
-                        prediction = sess.run(img2vec_model.class_prediction, feed_dict=feed_dict)
-                        #bins = np.bincount(prediction,minlength=10);
-                        bins = np.histogram(prediction, np.arange(0, file_const.num_classes+1, 1))[0]
-                        val_acc[class_i,:] = bins;
-                    utils.pkl_write('./dump/val_acc.pkl',val_acc);
+                # if(step % 1000 == 0):
+                #     ## Inspect true positive (TP), FP, TN, TP per class
+                #     val_acc= np.zeros((file_const.num_classes,file_const.num_classes));
+                #     for class_i in range(file_const.num_classes):
+                #         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, class_i, args);
+                #         prediction = sess.run(img2vec_model.class_prediction, feed_dict=feed_dict)
+                #         #bins = np.bincount(prediction,minlength=10);
+                #         bins = np.histogram(prediction, np.arange(0, file_const.num_classes+1, 1))[0]
+                #         val_acc[class_i,:] = bins;
+                #     utils.pkl_write('./dump/val_acc.pkl',val_acc);
 
 
                 train_writer.add_run_metadata(run_metadata, 'step%03d' % step)

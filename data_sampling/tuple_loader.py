@@ -14,12 +14,14 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+val_dir = 'val'
+
 class TupleLoader:
     def __init__(self, args):
         self._tuples_path = utils.dataset_tuples(utils.get_dataset_path(file_const.dataset_name))
 
         train_tuple_path = os.path.join(self._tuples_path, 'train')
-        val_tuple_path = os.path.join(self._tuples_path, 'val')
+        val_tuple_path = os.path.join(self._tuples_path, val_dir )
         self.train_lbls_ary = utils.pkl_read(os.path.join(train_tuple_path,'lbl.pkl'))
         self._num_training = self.train_lbls_ary.shape[0]
         self.val_lbls_ary = utils.pkl_read(os.path.join(val_tuple_path, 'lbl.pkl'))
@@ -46,48 +48,50 @@ class TupleLoader:
             prefix = 'tuple_'
             suffix = '_img';
             cv2.imwrite(file_const.dump_path + prefix + str(batch_idx) + '_' + str(lbl) + suffix + '.png',im)
-        return im;
-
+        return im
 
     def pkl_at_index(self,index,subset,ordered=True,batch_idx=None,lbl=None,verbose=False):
 
         pkl = utils.pkl_read(self._tuples_path + '/' + subset + '/frame' + '%07d' % (index) + '.pkl')
-        rand_crop = np.random.rand();
-        y = int(rand_crop * (pkl.shape[0] - const.frame_height))
-        x = int(rand_crop * (pkl.shape[1] - const.frame_width))
-
-        rand_rgb_channel = np.random.choice(3);
-        stack_diff = np.zeros((const.frame_height,const.frame_width,const.context_channels))
-        if (ordered):
-            frames_order = np.arange(const.context_channels + 1)
+        if(pkl.shape[2] == 5):
+            return pkl; ## This is Test pkl, load it as it is
         else:
-            frames_order = np.random.permutation(const.context_channels + 1)
-        #print(frames_order )
-        for i in range(const.context_channels):
-            current_frame = pkl[y:y+const.frame_height,x:x+const.frame_width,rand_rgb_channel,frames_order[i]];
-            next_frame = pkl[y:y+const.frame_height,x:x+const.frame_width, rand_rgb_channel, frames_order[i+1]];
-            stack_diff[:,:,i] = current_frame.astype(np.int32) - next_frame.astype(np.int32);
+            rand_crop = np.random.rand();
+            y = int(rand_crop * (pkl.shape[0] - const.frame_height))
+            x = int(rand_crop * (pkl.shape[1] - const.frame_width))
+
+            rand_rgb_channel = np.random.choice(3);
+            stack_diff = np.zeros((const.frame_height,const.frame_width,const.context_channels))
+            if (ordered):
+                frames_order = np.arange(const.context_channels + 1)
+            else:
+                frames_order = np.random.permutation(const.context_channels + 1)
+            #print(frames_order )
+            for i in range(const.context_channels):
+                current_frame = pkl[y:y+const.frame_height,x:x+const.frame_width,rand_rgb_channel,frames_order[i]];
+                next_frame = pkl[y:y+const.frame_height,x:x+const.frame_width, rand_rgb_channel, frames_order[i+1]];
+                stack_diff[:,:,i] = current_frame.astype(np.int32) - next_frame.astype(np.int32);
 
 
-        if(verbose):
-            prefix = 'tuple_'
-            suffix = '_pkl'
-            images = []
-            for j in range(5):
-                im = stack_diff[:, :, j];
-                im = ((im - np.amin(im)) / np.amax(im) - np.amin(im)) * 255
-                im = im.astype(np.uint8)
-                images.append(im)
-                cv2.imwrite(file_const.dump_path + prefix + str(batch_idx) + '_' + str(ordered) + '_' + str(j) + suffix + '.png', im)
-            for j in range(5):
-                images.append(np.zeros((const.frame_height, const.frame_width), dtype=np.uint8))
-            imageio.mimsave(file_const.dump_path + prefix + str(batch_idx) + '_' + str(ordered) + '_' + str(lbl) + suffix + '.gif', images,
-                            duration=0.5)
-            if(ordered == False):
-                self.pkl_at_index(index,subset,ordered=True,batch_idx=batch_idx,lbl=lbl,verbose=True);
+            if(verbose):
+                prefix = 'tuple_'
+                suffix = '_pkl'
+                images = []
+                for j in range(5):
+                    im = stack_diff[:, :, j];
+                    im = ((im - np.amin(im)) / np.amax(im) - np.amin(im)) * 255
+                    im = im.astype(np.uint8)
+                    images.append(im)
+                    cv2.imwrite(file_const.dump_path + prefix + str(batch_idx) + '_' + str(ordered) + '_' + str(j) + suffix + '.png', im)
+                for j in range(5):
+                    images.append(np.zeros((const.frame_height, const.frame_width), dtype=np.uint8))
+                imageio.mimsave(file_const.dump_path + prefix + str(batch_idx) + '_' + str(ordered) + '_' + str(lbl) + suffix + '.gif', images,
+                                duration=0.5)
+                if(ordered == False):
+                    self.pkl_at_index(index,subset,ordered=True,batch_idx=batch_idx,lbl=lbl,verbose=True);
 
 
-        return stack_diff
+            return stack_diff
 
     def hot_one_vector(self,y, max):
         labels_hot_vector = np.zeros((y.shape[0], max))
@@ -103,7 +107,7 @@ class TupleLoader:
             class_lbls = self.train_lbls_ary
             ratio = 3
         elif (subset == const.Subset.VAL):
-            subset_name = 'val'
+            subset_name = val_dir
             subset_size = self._num_val
             class_lbls = self.val_lbls_ary
             ratio = 2;
@@ -202,7 +206,7 @@ class TupleLoader:
             class_lbls = self.train_lbls_ary
             ratio = 3
         elif (subset == const.Subset.VAL):
-            subset_name = 'val'
+            subset_name = val_dir
             subset_size = self._num_val
             class_lbls = self.val_lbls_ary
             ratio = 2;
@@ -279,7 +283,7 @@ class TupleLoader:
             subset_size = self._num_training
             class_lbls = self.train_lbls_ary
         elif (subset == const.Subset.VAL):
-            subset_name = 'val'
+            subset_name = val_dir
             subset_size = self._num_val
             class_lbls = self.val_lbls_ary
         elif (subset == const.Subset.TEST):
@@ -352,7 +356,8 @@ def save_pkls(prefix, context,lbls,suffix):
 
 def save_imgs(prefix, imgs,lbls,suffix):
     for i in range(imgs.shape[0]):
-        cv2.imwrite(file_const.dump_path + prefix + str(i) + '_' + str(lbls[i]) + suffix+'.png',
+        print(file_const.dump_path )
+        cv2.imwrite(file_const.dump_path + prefix + str(i) + '_' + str(np.argmax(lbls[i])) + suffix+'.png',
                     np.reshape(imgs[i], (const.frame_height, const.frame_width, const.frame_channels)))
 
 
@@ -365,10 +370,10 @@ if __name__ == '__main__':
     vdz_dataset = TupleLoader(args);
     import time
     start_time = time.time()
-    words, contexts, lbls = vdz_dataset.next(const.Subset.VAL,fix_label=None,supervised=False)
+    words, contexts, lbls = vdz_dataset.next(const.Subset.VAL,fix_label=None,supervised=True)
     elapsed_time = time.time() - start_time
     print('elapsed_time :', elapsed_time)
     # Some visualization for debugging purpose
     save_imgs('tuple_',words,lbls,'_img');
-    save_pkls('tuple_', contexts, lbls, '_pkl');
+    #save_pkls('tuple_', contexts, lbls, '_pkl');
     print('Done')

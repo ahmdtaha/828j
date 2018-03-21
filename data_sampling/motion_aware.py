@@ -27,11 +27,40 @@ def get_valid_frame_range(total_num_frames):
         right_extreme = trim_borders + num_frames * step_btwn_frames + 1
         if (left_extreme < 0 or right_extreme >= total_num_frames or (total_num_frames- 2 * trim_borders - 1) == 0):
             step_btwn_frames -=1
-            invalid_trim_borders = True
         else:
             invalid_trim_borders = False
 
     return trim_borders,step_btwn_frames
+
+def sample_rand_motion_frames(vid,vdx_path=None,n=1):
+    try:
+        ## Default params
+        total_num_frames = vid._meta['nframes']
+        if (total_num_frames < 60):
+            print('Video is too small',vdx_path)
+            return None, None
+
+
+        stack_diff_frame_idz = np.zeros(6, dtype=np.int32);
+        trim_borders, step_btwn_frames = get_valid_frame_range(total_num_frames)
+        center_frame_idx = np.random.choice(trim_borders,total_num_frames-trim_borders);
+        
+
+        ideal_sampling_space = 15; ## Just an intuition from Shuffle & Learn
+
+        left_sampling_space = min(ideal_sampling_space ,center_frame_idx //3) ## I need three frames from the left
+        right_sampling_space = min(ideal_sampling_space, (total_num_frames-center_frame_idx)// 3)  ## I need three frames from the left
+
+        current_sampling_space = min(left_sampling_space ,right_sampling_space );
+        left_ptr = center_frame_idx - current_sampling_space * 3 + current_sampling_space//2
+        for i in range(6):
+            stack_diff_frame_idz[i] = left_ptr  + i * current_sampling_space
+
+        return center_frame_idx,stack_diff_frame_idz;
+    except:
+        traceback.print_exc()
+        print('Something is wrong with sample_high_motion_frames',vdx_path)
+        return None,None
 
 def sample_high_motion_frames(vid,flow_mag,vdx_path=None,n=1):
 
