@@ -1,3 +1,6 @@
+import sys
+sys.path.append('../')
+
 import os
 import glob
 import numpy as np
@@ -6,10 +9,11 @@ import tensorflow as tf
 import random
 import pdb
 import imageio
+import configuration as config
 
 def tuple_generator(supervised, sessions, batch_size=8, num_threads=2, shuffled=True, stride=11,
-        frame_dir='/mnt/work/honda_100h/frames/',
-        label_dir='/mnt/work/honda_100h/labels/'):
+        frame_dir=config.honda_session_path+'/frames/',
+        label_dir=config.honda_session_path+'/labels/'):
     """
     Generator of tuples
 
@@ -111,13 +115,14 @@ def tuple_generator(supervised, sessions, batch_size=8, num_threads=2, shuffled=
 if __name__ == '__main__':
 
 #    train_sessions = ['201706071021', '201704111138', '201703061700']    # for example
-    with open('/mnt/work/honda_100h/train_session.txt','r') as fin:
+    with open(config.honda_session_path+'/train_session.txt','r') as fin:
         train_sessions = fin.read().strip().split('\n')
-    with open('/mnt/work/honda_100h/val_session.txt','r') as fin:
+    with open(config.honda_session_path+'/val_session.txt','r') as fin:
         val_sessions = fin.read().strip().split('\n')
 
     train_data = tuple_generator(supervised=True, sessions=train_sessions)
 #    train_data = tuple_generator(supervised=False, sessions=train_sessions)
+    print(train_data.output_types)
     train_iterator = tf.data.Iterator.from_structure(train_data.output_types,
                                                     train_data.output_shapes)
     next_train = train_iterator.get_next()
