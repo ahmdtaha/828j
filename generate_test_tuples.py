@@ -11,28 +11,7 @@ import pickle
 import sys
 import time
 import traceback
-
-
-def _visualize_saved_pickle(pkl_file_path):
-    """
-    Visualize center frames and their stack of differences for some video.
-    Args:
-        pkl_file_path: path the generated pickle file for a video.
-    """
-    with open(pkl_file_path, 'rb') as f:
-        centers, stacks_of_diffs = pickle.load(f)
-    for i in range(len(centers)):
-        img = centers[i]
-        # b, g, r = cv2.split(img)
-        # img = cv2.merge([r, g, b])
-        plt.imshow(img)
-        plt.show()
-
-        stack = stacks_of_diffs[i]
-        stack = (stack + 255) / 2
-        for j in range(stack.shape[-1]):
-            plt.imshow(stack[:, :, j], cmap='gray')
-            plt.show()
+import tuple_generation_utils as gen_utils
 
 
 def _generate_and_save_test_tuples(video_path, output_path, sampling_fn):
@@ -52,77 +31,6 @@ def _generate_and_save_test_tuples(video_path, output_path, sampling_fn):
     #                                                   len(center_frames)))
     with open(output_path, 'wb') as f:
         pickle.dump((center_frames, stacks_of_diffs), f)
-
-
-def _get_standard_frame(video, frame_index):
-    """
-    Retreives a specific frame from a video, and rescales it into a pre-defined
-    height and width (specified by: const.frame_height and const.frame_width).
-
-    Args:
-        video: loaded video with imageio ffmpeg.
-        frame_index (int): index of the required frame.
-
-    Returns:
-        array (height x width x 3) representing the extracted frame after being
-        rescaled to a standard size.
-    """
-    frame = video.get_data(frame_index)
-    if(frame.shape[0] != const.frame_height or
-       frame.shape[1] != const.frame_width):
-        frame = cv2.resize(frame, (const.frame_width, const.frame_height))
-
-    return frame
-
-
-def _create_stack_of_diffs(video, frame_indices):
-    """
-    Creates a stack of differences by converting the specified frames into
-    grayscale and taking their differences.
-
-    Args:
-        video: loaded video with imageio ffmpeg.
-        frame_inicies (list of ints): frame indices the constitute the stack.
-
-    Returns:
-        array (stack_size x height x width) representing the stack of diffs.
-        stack_size is len(frame_indices) - 1
-    """
-    num_frames = len(frame_indices)
-    stack_of_diffs = np.zeros((const.frame_height, const.frame_width,
-                               num_frames - 1))
-
-    ## Temporary change the stack of diff to be  current - next
-    for i in range(num_frames - 1):
-        current_frame = _get_standard_frame(video, frame_indices[i])
-        current_frame = cv2.cvtColor(current_frame, cv2.COLOR_RGB2GRAY)
-
-        next_frame = _get_standard_frame(video, frame_indices[i+1])
-        next_frame= cv2.cvtColor(next_frame, cv2.COLOR_RGB2GRAY)
-
-        stack_of_diffs[:, :, i] = current_frame.astype(np.int32) - next_frame.astype(np.int32);
-
-
-    # prev_frame = _get_standard_frame(video, frame_indices[0])
-    # # dbg_rgb_path = str(frame_indices[0]) + '_rgb.png'
-    # # cv2.imwrite(dbg_rgb_path, cv2.cvtColor(prev_frame, cv2.COLOR_RGB2BGR))
-    # prev_frame = cv2.cvtColor(prev_frame, cv2.COLOR_RGB2GRAY)
-    # # dbg_gray_path = str(frame_indices[0]) + '_gray.png'
-    # # cv2.imwrite(dbg_gray_path, prev_frame)
-    # for ii in range(1, num_frames):
-    #     frame = _get_standard_frame(video, frame_indices[ii])
-    #     # dbg_rgb_path = str(frame_indices[ii]) + '_rgb.png'
-    #     # cv2.imwrite(dbg_rgb_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-    #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-    #     # dbg_gray_path = str(frame_indices[ii]) + '_gray.png'
-    #     # cv2.imwrite(dbg_gray_path, frame)
-    #     stack_of_diffs[:, :, ii - 1] = frame.astype(
-    #         np.int32) - prev_frame.astype(np.int32)
-    #     # dbg_diff_path = str(frame_indices[ii]) + '_diff.png'
-    #     # cv2.imwrite(dbg_diff_path, np.squeeze(stack_of_diffs[:, :, ii - 1]))
-    #     prev_frame = frame
-
-    return stack_of_diffs
 
 
 # FIXME: something is worng: several videos of hmdb51 are skipped (they crash
@@ -181,15 +89,8 @@ def _split_into_test_tuples(video_path, num_frames=6, step=15):
                 chunks[i] = chunks[i] + shift
             break
 
-    # Generate center frames and stacks of differences
-    center_frames_indices = map(lambda x: (x[-1] + x[0]) // 2, chunks)
-    center_frames = list(map(lambda x: _get_standard_frame(video, x),
-                             center_frames_indices))
-    # stacks_of_diffs = list(map(lambda x: _create_stack_of_diffs(video, x),
-    #                            chunks))
-    stacks_of_diffs = [None] * len(chunks)
-    for ii in range(len(chunks)):
-        stacks_of_diffs[ii] = _create_stack_of_diffs(video, chunks[ii])
+    center_frames, stacks_of_diffs = gen_utils.split_into_tuples(video_path,
+                                                                 chunks)
 
     return center_frames, stacks_of_diffs
 
