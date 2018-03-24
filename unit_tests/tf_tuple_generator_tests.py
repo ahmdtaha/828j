@@ -56,7 +56,7 @@ def test_build_supervised_input_for_train():
             # visualize tuples
             gen_utils.visualize_saved_pickle(
                 out_pkl_path, k_output_dump_path,
-                output_prefix='test_sup_train_tuples_')
+                output_prefix='test_sup_train_tuples_' + basename + '_')
 
 
 def test_split_into_train_tuples():

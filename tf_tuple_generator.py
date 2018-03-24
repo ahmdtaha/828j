@@ -3,6 +3,7 @@ import argparse
 import constants as const
 import cv2
 import imageio
+import math
 import numpy as np
 import os.path as osp
 import pickle
@@ -105,6 +106,99 @@ def _shufle_motion():
     return None
 
 
+# Data augmentation
+def augment_data(inp_imgs_tf, motion_encs_tf, img_height, img_width,
+                 num_motion_channels):
+
+    # Flip horizontally
+    hor_flip_bool = tf.less(tf.random_uniform(shape=[], minval=0, maxval=1.),
+                            0.5)
+    inp_imgs_tf, motion_encs_tf = tf.cond(
+        hor_flip_bool, lambda: (tf.image.flip_left_right(inp_imgs_tf),
+                                tf.image.flip_left_right(motion_encs_tf)),
+                       lambda: (inp_imgs_tf, motion_encs_tf))
+
+    # TODO: should we do vertical flipping?
+    # Flip vertically
+    ver_flip_bool = tf.less(tf.random_uniform(shape=[], minval=0, maxval=1.),
+                            0.5)
+    inp_imgs_tf, motion_encs_tf = tf.cond(
+        ver_flip_bool, lambda: (tf.image.flip_up_down(inp_imgs_tf),
+                                tf.image.flip_up_down(motion_encs_tf)),
+                       lambda: (inp_imgs_tf, motion_encs_tf))
+
+    # dummy reshape operation because tf.contrib.image.transform operation
+    # needs to know the tensorshape beforehand!
+    # FIXME: I suspect this dummy reshape causes vertical flipping, possibly
+    # because height = width = 227? That or either some input videos are
+    # vertically flipped
+    inp_imgs_tf = tf.reshape(inp_imgs_tf, [-1, img_height, img_width, 3])
+    motion_encs_tf = tf.reshape(motion_encs_tf, [-1, img_height, img_width, 
+                                                 num_motion_channels])
+
+    # Random rotation
+    rotate_flag = tf.less(tf.random_uniform(shape=[], minval=0, maxval=1.), 0.7)
+
+    # angle = tf.random_uniform(shape=[], maxval=2 * math.pi)
+    max_angle = 30.0 * math.pi / 180
+    angle = tf.random_uniform(shape=[], maxval=2 * max_angle) - max_angle
+
+    inp_imgs_tf, motion_encs_tf = tf.cond(
+        rotate_flag, lambda: (tf.contrib.image.rotate(inp_imgs_tf, angle),
+                              tf.contrib.image.rotate(motion_encs_tf, angle)),
+                     lambda: (inp_imgs_tf, motion_encs_tf))
+
+    # angle = 45 * math.pi / 180
+    # inp_imgs_tf = tf.contrib.image.rotate(inp_imgs_tf, angle)
+    # motion_encs_tf = tf.contrib.image.rotate(motion_encs_tf, angle)
+
+    # Chromatic chages
+
+    # Color distortions are non-commutative, and so the order matters
+    def order_1(img):
+        img = tf.image.random_brightness(img, max_delta=32./255.)
+        img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
+        img = tf.image.random_hue(img, max_delta=0.2)
+        img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
+        return img
+
+    def order_2(img):
+        img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
+        img = tf.image.random_brightness(img, max_delta=32./255.)
+        img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
+        img = tf.image.random_hue(img, max_delta=0.2)
+        return img
+
+    def order_3(img):
+        img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
+        img = tf.image.random_hue(img, max_delta=0.2)
+        img = tf.image.random_brightness(img, max_delta=32./255.)
+        img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
+        return img
+
+    def order_4(img):
+        img = tf.image.random_hue(img, max_delta=0.2)
+        img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
+        img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
+        img = tf.image.random_brightness(img, max_delta=32./255.)
+        return img
+
+    # Randomly choose 1 of 4 random ordering for chromatic changes
+    order_rand = tf.random_uniform(shape=[], minval=0, maxval=4)
+
+    inp_imgs_tf = tf.case(
+        {tf.less(order_rand, 1):
+            lambda: tf.map_fn(lambda image: order_1(image), inp_imgs_tf),
+         tf.less(order_rand, 2):
+            lambda: tf.map_fn(lambda image: order_2(image), inp_imgs_tf),
+         tf.less(order_rand, 3):
+            lambda: tf.map_fn(lambda image: order_3(image), inp_imgs_tf)
+        },
+        default=lambda: tf.map_fn(lambda image: order_4(image), inp_imgs_tf))
+
+    return inp_imgs_tf, motion_encs_tf
+
+
 def _build_supervised_input_for_train(filenames_tf, cfg, num_threads):
     center_frames, motion_encodings, class_labels, filenames_tf_tiled = _decode(
         filenames_tf, cfg)
@@ -112,10 +206,9 @@ def _build_supervised_input_for_train(filenames_tf, cfg, num_threads):
 
     # Data augmentation
     if cfg.augmentation_flag:
-        # center_frame, motion_encoding = augment_data(center_frame,
-        #                                              motion_encoding)
-        # raise NotImplementedError  # TODO
-        None
+        center_frames, motion_encodings = augment_data(
+            center_frames, motion_encodings, cfg.img_height, cfg.img_width,
+            cfg.context_channels)
 
     # TODO: check if values for the capacity and min_after_dequeue are not bad
     example_queue = tf.RandomShuffleQueue(
@@ -124,6 +217,8 @@ def _build_supervised_input_for_train(filenames_tf, cfg, num_threads):
         shapes=[[cfg.img_height, cfg.img_width, cfg.img_channels],
                 [cfg.img_height, cfg.img_width, cfg.context_channels], [], []])
 
+    # print('DBG1: ', center_frames.get_shape())
+    # print('DBG2: ', motion_encodings.get_shape())
     example_enqueue_op = example_queue.enqueue_many(
         [center_frames, motion_encodings, class_labels, filenames_tf_tiled])
 
