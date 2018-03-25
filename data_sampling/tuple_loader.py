@@ -93,10 +93,7 @@ class TupleLoader:
 
             return stack_diff
 
-    def hot_one_vector(self,y, max):
-        labels_hot_vector = np.zeros((y.shape[0], max))
-        labels_hot_vector[np.arange(y.shape[0]), y] = 1
-        return labels_hot_vector
+
 
     def unsupervised_next2(self, subset, fix_label=None):
         subset_name = ''

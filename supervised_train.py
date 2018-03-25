@@ -6,16 +6,17 @@ import data_sampling.data_args as data_args
 from nets.two_stream import TwoStreamNet
 import constants as const
 import configuration as file_const
-from data_sampling.tuple_loader import TupleLoader
+#from data_sampling.tuple_loader import TupleLoader
+from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
 import numpy as np
 import utils
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
     if args[data_args.gen_nearby_frame]:
-        words,nearby, context, lbl = data_generator.next(subset, fix,supervised=True)
+        words,nearby, context, lbl = data_generator.next(subset,supervised=True)
         feed_dict = {model.input_words: words,model.nearby_words: nearby, model.input_context: context, model.supervised_labels: lbl}
     else:
-        words, context, lbl = data_generator.next(subset,fix,supervised=True)
+        words, context, lbl = data_generator.next(subset,supervised=True)
         feed_dict = {model.input_words: words, model.input_context:context , model.supervised_labels: lbl}
 
     return feed_dict;
@@ -29,7 +30,7 @@ if __name__ == '__main__':
     args[data_args.data_augmentation_enabled] = False
 
     img_generator = TupleLoader(args)
-    img_generator.next(const.Subset.TRAIN,None,supervised=True)
+    img_generator.next(const.Subset.TRAIN,supervised=True)
 
     load_alex_weights = True;
 

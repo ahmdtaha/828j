@@ -14,7 +14,7 @@ elif dataset_name == 'UCF101':
 elif dataset_name == 'HMDB':
     num_classes = 51
 elif dataset_name == 'honda':
-    num_classes = 13
+    num_classes = 11
 unsupervised_num_classes = 4
 
 tensorbaord_dir = './tb/'

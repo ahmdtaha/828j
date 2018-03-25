@@ -221,13 +221,12 @@ if __name__ == '__main__':
 
                     saver.save(sess, ckpt_file)
 
-                    confusion_matrix_labels = ["Background", "Intersection passing", "railroad passing", 'Right turn',
-                                               'left turn', 'intersection passing', 'left lane change',
-                                               'right lane change', 'right lane branch', 'left lane branch', 'Merge',
-                                               'crosswalk passing', 'U-turn']
+                    confusion_matrix_labels = ["Background", "Intersection", "L turn", 'R turn',
+                                               'L ln change', 'R ln change', 'Crosswalk',
+                                               'U-turn', 'L ln branch', 'R ln branch', 'Merge']
 
                     cnf_matrix = confusion_matrix(confusion_matrix_gt_labels, confusion_matrix_predictions,
-                                                  labels=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+                                                  labels=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
                     #print(confusion_matrix)
 
                     # Plot non-normalized confusion matrix

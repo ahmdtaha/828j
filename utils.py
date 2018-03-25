@@ -45,6 +45,13 @@ def txt_write(path,lines):
 def pkl_write(path,data):
     pickle.dump(data, open(path, "wb"))
 
+
+def hot_one_vector(y, max):
+    import numpy as np
+    labels_hot_vector = np.zeros((y.shape[0], max))
+    labels_hot_vector[np.arange(y.shape[0]), y] = 1
+    return labels_hot_vector
+
 def pkl_read(path):
     if(not os.path.exists(path)):
         return None;
