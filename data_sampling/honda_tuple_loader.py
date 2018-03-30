@@ -6,7 +6,7 @@ import data_sampling.data_args as data_args
 import constants as const
 import numpy as np
 import cv2
-import utils
+from utils import os_utils
 import traceback
 import imageio
 import data_sampling.honda_labels as honda_lbls
@@ -15,6 +15,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import tensorflow as tf
 import multiprocessing as mp
+from multiprocessing import Pool,TimeoutError
 
 val_dir = 'val'
 
@@ -29,7 +30,7 @@ class HondaTupleLoader:
 
         for vdz in range(num_sessions):
             vdz_annotation_path = os.path.join(config.honda_session_path,'labels/'+sessions[vdz]+'_goal.pkl')
-            sessions_annotations[vdz] = utils.pkl_read(vdz_annotation_path)
+            sessions_annotations[vdz] = os_utils.pkl_read(vdz_annotation_path)
 
         return sessions,num_sessions,sessions_annotations
     def __init__(self, args):
@@ -242,7 +243,7 @@ class HondaTupleLoader:
             contexts[batch_idx, :, :] = context
 
         #print(sample_count)
-        labels_hot_vector = utils.hot_one_vector(labels,4);
+        labels_hot_vector = os_utils.hot_one_vector(labels,4);
         return words, contexts, labels_hot_vector
     # def dump(self, pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations,
     #                       ordered, queue):
@@ -257,8 +258,10 @@ class HondaTupleLoader:
             word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,
                                                       current_sessions_annotations, ordered)
 
+            print('word mean-1',np.mean(word))
             labels[batch_idx] = goal;
             words[batch_idx, :, :] = word
+            print('word mean-2', np.mean(words))
             contexts[batch_idx, :, :] = context
             queue.put(True)  ## Success Flag
             # queue.put(word)
@@ -267,6 +270,18 @@ class HondaTupleLoader:
         except:
             traceback.print_exc()
             queue.put(False)  ## Fail Flag
+
+    def pool_load_pos_tuple(self, pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations,
+                          ordered):
+        try:
+            word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,
+                                                      current_sessions_annotations, ordered)
+
+            return (word, context, goal)
+
+        except:
+            traceback.print_exc()
+            return (None,None,None)
 
 
 
@@ -294,40 +309,63 @@ class HondaTupleLoader:
 
         sample_count = np.zeros(config.num_classes);
 
-        queue_size = const.batch_size;
-        queues = [None] * queue_size
-        processes = [None] * queue_size
-        print('queue_size ',queue_size)
+        #queue_size = const.batch_size;
+        # queues = [None] * queue_size
+        # processes = [None] * queue_size
+        # print('queue_size ',queue_size)
 
+        # queue_size = 5
+        # pool = Pool(processes=queue_size )
+        # res = [None] * queue_size
+        for batch_idx in np.arange(0,const.batch_size):
 
-        for batch_idx in range(const.batch_size):
+            word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,
+                                                  current_sessions_annotations, ordered=True);
+            labels[batch_idx] = goal;
+            words[batch_idx, :, :] = word
+            contexts[batch_idx, :, :] = context
 
-            # word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,
-            #                                       current_sessions_annotations, ordered=True);
-            # labels[batch_idx] = goal;
-            # words[batch_idx, :, :] = word
-            # contexts[batch_idx, :, :] = context
             # sample_count[labels[batch_idx]] += 1
             # print(batch_idx , 'Goal ',goal,honda_lbls.honda_num2labels[goal])
-            queues[batch_idx] = mp.Queue()
-            processes[batch_idx] = mp.Process(target=self.mp_load_pos_tuple,args=(pos_tuple, annotation_idx, batch_idx,
-                                                                               current_sessions,current_sessions_annotations, True,labels,words,contexts,queues[batch_idx]))
-            processes[batch_idx].start()
+            # for j in range(queue_size):
+            #     res[j] = pool.apply_async(self.pool_load_pos_tuple,args=(pos_tuple, annotation_idx, batch_idx+j,
+            #                                                                     current_sessions,current_sessions_annotations, True))
+            #
+            # for j in range(queue_size):
+            #     try:
+            #         result = res[j].get(timeout=10)
+            #         word, context, goal = result;
+            #         #print(batch_idx+j, 'Goal ', goal, honda_lbls.honda_num2labels[goal])
+            #         #print('Worked for batch_idx ',batch_idx )
+            #     except TimeoutError:
+            #         print('TimeoutError')
+            #         word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,
+            #                                                   current_sessions_annotations, ordered=True);
+            #     labels[batch_idx+j] = goal;
+            #     words[batch_idx+j, :, :] = word
+            #     contexts[batch_idx+j, :, :] = context
 
-
-        for batch_idx in range(const.batch_size):
-            processes[batch_idx].join()
-            success = queues[batch_idx].get()
-            if (not success):
-                word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,current_sessions_annotations, ordered=True);
-
-
-                labels[batch_idx] = goal;
-                words[batch_idx, :, :] = word
-                contexts[batch_idx, :, :] = context
+            # queues[batch_idx] = mp.Queue()
+        #     processes[batch_idx] = mp.Process(target=self.mp_load_pos_tuple,args=(pos_tuple, annotation_idx, batch_idx,
+        #                                                                        current_sessions,current_sessions_annotations, True,labels,words,contexts,queues[batch_idx]))
+        #     processes[batch_idx].start()
+        #
+        #
+        #
+        #
+        # for batch_idx in range(const.batch_size):
+        #     processes[batch_idx].join()
+        #     success = queues[batch_idx].get()
+        #     if (not success):
+        #         word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,current_sessions_annotations, ordered=True);
+        #
+        #
+        #         labels[batch_idx] = goal;
+        #         words[batch_idx, :, :] = word
+        #         contexts[batch_idx, :, :] = context
 
         #print(sample_count)
-        labels_hot_vector = utils.hot_one_vector(labels, config.num_classes);
+        labels_hot_vector = os_utils.hot_one_vector(labels, config.num_classes);
         return words, contexts, labels_hot_vector
 
     def next(self, subset,supervised = False):
@@ -360,19 +398,21 @@ if __name__ == '__main__':
     args = dict()
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
-    import time
-    for seed in range(1):
-        np.random.seed(seed)
-        print('Current using seed ',seed)
-        vdz_dataset = HondaTupleLoader(args);
-        for i in range(10):
-            start_time = time.time()
-            words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
-            elapsed_time = time.time() - start_time
-            print('elapsed_time :', elapsed_time)
-    # for batch_idx in range(words.shape[0]):
-    #     vis_img(words[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_img')
-    #     vis_sod(contexts[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_sod')
+    vdz_dataset = HondaTupleLoader(args);
+    # import time
+    # for seed in range(1):
+    #     np.random.seed(seed)
+    #     print('Current using seed ',seed)
+    #
+    #     for i in range(10):
+    #         start_time = time.time()
+    #         words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
+    #         elapsed_time = time.time() - start_time
+    #         print('elapsed_time :', elapsed_time)
+    words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
+    for batch_idx in range(words.shape[0]):
+        vis_img(words[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_img')
+        vis_sod(contexts[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_sod')
     sys.exit(1)
     #
     #

@@ -1,8 +1,5 @@
-#texture_path = '/Users/ahmedtaha/UMD_Drive/Teaching/426-17/Projects/project4/data'
-#data_path = '/Users/ahmedtaha/Documents/dataset/hmdb51_small'
-#data_path = '/Users/ahmedtaha/Documents/dataset/UCF50_tuples_class'
 
-import utils
+import utils.os_utils as os_utils
 epoch_size = 500000
 dataset_name = 'honda'
 
@@ -21,10 +18,10 @@ tensorbaord_dir = './tb/'
 
 #honda_session_path = '/mnt/work/honda_100h/'
 honda_session_path = '/Users/ahmedtaha/Documents/dataset/honda_100h'
-model_save_path = './model/unsup_ucf101_multi'
+model_save_path = './model/sup_honda'
 model_weights_filepath = '/Users/ahmedtaha/Documents/Models/bvlc_alexnet.npy'
 model_save_name = "patch_model.ckpt"
-tensorbaord_file = utils.get_last_part(model_save_path) #'20180304-180936'
+tensorbaord_file = os_utils.get_last_part(model_save_path) #'20180304-180936'
 dataset_path = ['/Users/ahmedtaha/Documents/dataset']
 dump_path = '/Users/ahmedtaha/Documents/dataset/dump/'
 

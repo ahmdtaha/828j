@@ -8,7 +8,7 @@ import constants as const
 import configuration as file_const
 #from data_sampling.tuple_loader import  TupleLoader
 from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
-import utils
+from utils import os_utils
 
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     print(tb_path )
     if(os.path.exists(tb_path )):
-        latest_filepath = utils.get_latest_file(tb_path)
+        latest_filepath = os_utils.get_latest_file(tb_path)
         print(latest_filepath)
         tb_iter = tf.train.summary_iterator(latest_filepath)
         for e in tb_iter:
