@@ -7,7 +7,8 @@ from nets.two_stream import TwoStreamNet
 import constants as const
 import configuration as file_const
 #from data_sampling.tuple_loader import  TupleLoader
-from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
+#from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
+from data_sampling.hmdb_tuple_loader import HMDBTupleLoader as TupleLoader
 from utils import os_utils
 
 
@@ -23,6 +24,10 @@ def gen_feed_dict(model,data_generator,subset,fix,args):
 
 
 if __name__ == '__main__':
+
+    save_model_dir = file_const.model_save_path;
+    os_utils.touch_dir(save_model_dir)
+
     args = dict()
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
@@ -48,8 +53,11 @@ if __name__ == '__main__':
 
     train_op = optimizer.apply_gradients(grads)
 
+    trained_variables = []
     for v in tf.trainable_variables():
-        print(v.name , '\t',v.shape)
+        print(v.name, '\t', v.shape)
+        trained_variables.append(str(v.name) + '\t' + str(v.shape))
+    os_utils.txt_write(os.path.join(save_model_dir, 'trained_var.txt'), trained_variables)
 
     sess = tf.InteractiveSession()
     now = datetime.now()

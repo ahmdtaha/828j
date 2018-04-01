@@ -1,7 +1,7 @@
 
 import utils.os_utils as os_utils
 epoch_size = 500000
-dataset_name = 'honda'
+dataset_name = 'HMDB'
 
 dataset_dir = dataset_name
 if(dataset_name == 'UCF50'):
@@ -18,7 +18,8 @@ tensorbaord_dir = './tb/'
 
 #honda_session_path = '/mnt/work/honda_100h/'
 honda_session_path = '/Users/ahmedtaha/Documents/dataset/honda_100h'
-model_save_path = './model/sup_honda'
+hmdb_session_path = '/Users/ahmedtaha/Documents/dataset/hmdb51_sampled'
+model_save_path = './model/unsup_hmdb'
 model_weights_filepath = '/Users/ahmedtaha/Documents/Models/bvlc_alexnet.npy'
 model_save_name = "patch_model.ckpt"
 tensorbaord_file = os_utils.get_last_part(model_save_path) #'20180304-180936'
