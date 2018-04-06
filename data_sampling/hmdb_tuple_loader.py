@@ -26,7 +26,7 @@ class HMDBTupleLoader:
     def load_subset(self,subset):
         df = pd.read_pickle(config.db_path + '/db_summary_splits.pkl')
         #print(df.shape)
-        split = 1
+        split = config.db_split
 
         # The video is included in the training set if id is 1
         # The video is included in the testing set if id is 2

@@ -2,7 +2,7 @@
 import utils.os_utils as os_utils
 epoch_size = 500000
 dataset_name = 'UCF101'
-
+db_split = 1
 
 dataset_dir = dataset_name
 if(dataset_name == 'UCF50'):
