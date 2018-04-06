@@ -6,9 +6,9 @@ import data_sampling.data_args as data_args
 from nets.two_stream import TwoStreamNet
 import constants as const
 import configuration as file_const
-#from data_sampling.tuple_loader import  TupleLoader
-#from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
-from data_sampling.hmdb_tuple_loader import HMDBTupleLoader as TupleLoader
+from data_sampling.hmdb_tuple_loader import HMDBTupleLoader
+from data_sampling.ucf_tuple_loader import UCFTupleLoader
+
 from utils import os_utils
 
 
@@ -33,7 +33,11 @@ if __name__ == '__main__':
     args[data_args.data_augmentation_enabled] = False
 
 
-    img_generator = TupleLoader(args)
+    if(file_const.dataset_name == 'UCF101'):
+        img_generator = UCFTupleLoader(args)
+    elif(file_const.dataset_name == 'HMDB'):
+        img_generator = HMDBTupleLoader(args)
+
     img_generator.next(const.Subset.TRAIN)
 
     load_alex_weights = True;
@@ -123,22 +127,10 @@ if __name__ == '__main__':
                 val_loss_op,accuracy_op= sess.run([val_loss,model_acc_op], feed_dict=feed_dict)
 
 
-                ## Allow me to inspect true positive and false positive rates
-                # feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, 1, args);
-                # pos_acc_value = sess.run(pos_acc_op, feed_dict=feed_dict)
-
-                ## Allow me to inspect true negative and false negative rates
-                # feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, -1, args);
-                # neg_acc_value  = sess.run(neg_acc_op, feed_dict=feed_dict)
-
-                #print(summary)
                 train_writer.add_run_metadata(run_metadata, 'step%03d' % step)
 
                 train_writer.add_summary(train_loss_op, step)
                 train_writer.add_summary(val_loss_op, step)
-
-                # train_writer.add_summary(pos_acc_value, step)
-                # train_writer.add_summary(neg_acc_value, step)
 
                 train_writer.add_summary(accuracy_op, step)
                 train_writer.flush()

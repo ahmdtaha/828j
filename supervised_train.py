@@ -8,7 +8,8 @@ import constants as const
 import configuration as file_const
 #from data_sampling.tuple_loader import TupleLoader
 #from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
-from data_sampling.hmdb_tuple_loader import HMDBTupleLoader as TupleLoader
+from data_sampling.hmdb_tuple_loader import HMDBTupleLoader
+from data_sampling.ucf_tuple_loader import UCFTupleLoader
 import numpy as np
 from utils import os_utils
 
@@ -26,8 +27,11 @@ if __name__ == '__main__':
     args = dict()
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
+    if(file_const.dataset_name == 'UCF101'):
+        img_generator = UCFTupleLoader(args)
+    elif(file_const.dataset_name == 'HMDB'):
+        img_generator = HMDBTupleLoader(args)
 
-    img_generator = TupleLoader(args)
     img_generator.next(const.Subset.TRAIN,supervised=True)
 
     load_alex_weights = True;

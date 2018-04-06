@@ -17,11 +17,12 @@ import tensorflow as tf
 import multiprocessing as mp
 from multiprocessing import Pool,TimeoutError
 import pandas as pd
+from datetime import datetime
 
 val_dir = 'val'
 
 
-class HMDBTupleLoader:
+class UCFTupleLoader:
 
     def load_subset(self,subset):
         df = pd.read_pickle(config.db_path + '/db_summary_splits.pkl')
@@ -30,12 +31,8 @@ class HMDBTupleLoader:
 
         # The video is included in the training set if id is 1
         # The video is included in the testing set if id is 2
-        # The video is not included for training/testing if id is 0
-        #print(df.loc[df['video-len'] >= 7])
         if(subset == 'train'):
             sub_df = df.loc[ (df['split'+str(split)] == 1) & (df['video-len'] >= 7)] ##
-        elif(subset == 'val'):
-            sub_df = df.loc[ (df['split' + str(split)] == 0) & (df['video-len'] >= 7)]
         elif (subset == 'test'):
             sub_df = df.loc[(df['split' + str(split)] == 2) & (df['video-len'] >= 7)]
 
@@ -50,14 +47,38 @@ class HMDBTupleLoader:
 
 
     def __init__(self, args):
-        self.train_videos, self.train_videos_lbls, self.train_videos_len= self.load_subset('train');
-        self.val_videos, self.val_videos_lbls, self.val_videos_len= self.load_subset('val');
-        #self.load_subset('test');
-
-        print('Train ',len(self.train_videos_lbls), ' Val ',len(self.val_videos_lbls))
-        if(config.dataset_name != 'HMDB'):
+        # There UCF dataset doesn't have clear validation set
+        if (config.dataset_name != 'UCF101'):
             print('Something is wrong with dataset, double check the config')
             sys.exit(1)
+
+        total_train_videos, total_train_videos_lbls, total_train_videos_len = self.load_subset('train');
+
+        ## TODO: bad quick workaround to fix train and val permutation
+        np.random.seed(828);
+
+        num_files = len(total_train_videos)
+        train_set_size = int(num_files  * 0.8)
+        samples_permutated = np.random.permutation(num_files);
+        train_idx = samples_permutated[0:train_set_size]
+        val_idx = samples_permutated[train_set_size:]
+        # [1466 2151  270 ...,  361 2272 2411]
+        print(train_idx )
+        self.train_videos = [total_train_videos[i] for i in train_idx]
+        self.train_videos_lbls = [total_train_videos_lbls[i] for i in train_idx]
+        self.train_videos_len = [total_train_videos_len[i] for i in train_idx]
+        self.val_videos = [total_train_videos[i] for i in val_idx]
+        self.val_videos_lbls = [total_train_videos_lbls[i] for i in val_idx]
+        self.val_videos_len = [total_train_videos_len[i] for i in val_idx]
+
+
+
+        print(datetime.now())
+        import time
+
+        np.random.seed(int(time.time()))
+        print('Train ',len(self.train_videos_lbls), ' Val ',len(self.val_videos_lbls))
+
 
     def imgs2sod(self,imgs,ordered=True):
 
@@ -169,8 +190,10 @@ class HMDBTupleLoader:
 
     def load_pos_tuple(self, pos_tuple, frame_sampling_idx, batch_idx, current_sessions, current_sessions_lbl,current_sessions_len,ordered=True):
         video = current_sessions[pos_tuple]
+
         video_len = current_sessions_len[pos_tuple]
         video_lbl = current_sessions_lbl[pos_tuple]
+        #print(video,video_lbl)
         center_idx = int(3 + frame_sampling_idx * (video_len -7));
 
         word = self.get_img(center_idx, video)
@@ -431,14 +454,14 @@ if __name__ == '__main__':
     args = dict()
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
-    vdz_dataset = HMDBTupleLoader(args);
-    words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=False)
-    #print(np.unique(np.argmax(labels,axis=1)))
-    # print(labels)
-    # for batch_idx in range(contexts.shape[0]):
-    #     vis_img(words[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_img')
-    #     vis_sod(contexts[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_sod')
-    # sys.exit(1)
+    vdz_dataset = UCFTupleLoader(args);
+    words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
+    print(np.unique(np.argmax(labels,axis=1)))
+    #print(labels)
+    for batch_idx in range(contexts.shape[0]):
+        vis_img(words[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_img')
+        vis_sod(contexts[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_sod')
+    sys.exit(1)
     # import time
     # for seed in range(1):
     #     np.random.seed(seed)
