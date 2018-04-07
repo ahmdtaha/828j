@@ -1,4 +1,4 @@
-batch_size = 10
+batch_size = 32
 logging_threshold = 10
 
 
