@@ -47,6 +47,7 @@ class UCFTupleLoader:
 
 
     def __init__(self, args):
+        print(self.__class__.__name__)
         # There UCF dataset doesn't have clear validation set
         if (config.dataset_name != 'UCF101'):
             print('Something is wrong with dataset, double check the config')

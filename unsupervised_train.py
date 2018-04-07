@@ -5,10 +5,10 @@ import sys
 import data_sampling.data_args as data_args
 from nets.two_stream import TwoStreamNet
 import constants as const
-import configuration as file_const
+import configuration as config
 from data_sampling.hmdb_tuple_loader import HMDBTupleLoader
 from data_sampling.ucf_tuple_loader import UCFTupleLoader
-
+from pydoc import locate
 from utils import os_utils
 
 
@@ -25,7 +25,7 @@ def gen_feed_dict(model,data_generator,subset,fix,args):
 
 if __name__ == '__main__':
 
-    save_model_dir = file_const.model_save_path;
+    save_model_dir = config.model_save_path;
     os_utils.touch_dir(save_model_dir)
 
     args = dict()
@@ -33,10 +33,9 @@ if __name__ == '__main__':
     args[data_args.data_augmentation_enabled] = False
 
 
-    if(file_const.dataset_name == 'UCF101'):
-        img_generator = UCFTupleLoader(args)
-    elif(file_const.dataset_name == 'HMDB'):
-        img_generator = HMDBTupleLoader(args)
+    img_generator_class = locate(config.db_tuple_loader)
+    img_generator = img_generator_class(args)
+
 
     img_generator.next(const.Subset.TRAIN)
 
@@ -65,10 +64,10 @@ if __name__ == '__main__':
 
     sess = tf.InteractiveSession()
     now = datetime.now()
-    if (file_const.tensorbaord_file == None):
-        tb_path = file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
+    if (config.tensorbaord_file == None):
+        tb_path = config.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
     else:
-        tb_path = file_const.tensorbaord_dir + file_const.tensorbaord_file
+        tb_path = config.tensorbaord_dir + config.tensorbaord_file
 
     print(tb_path )
     if(os.path.exists(tb_path )):
@@ -86,8 +85,8 @@ if __name__ == '__main__':
     saver = tf.train.Saver()  # saves variables learned during training
     tf.global_variables_initializer().run()
 
-    ckpt_file = os.path.join(file_const.model_save_path, file_const.model_save_name)
-    if (os.path.exists(file_const.model_save_path) and len(os.listdir(file_const.model_save_path)) > 1):
+    ckpt_file = os.path.join(config.model_save_path, config.model_save_name)
+    if (os.path.exists(config.model_save_path) and len(os.listdir(config.model_save_path)) > 1):
         saver.restore(sess, ckpt_file)
         print('Previous Model loaded ')
     elif load_alex_weights:
@@ -115,7 +114,7 @@ if __name__ == '__main__':
         #print(sess.run(debug_list, feed_dict),feed_dict)
 
         if(step % const.logging_threshold == 0):
-            print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value, ' Epoch = %2f' % ((step * const.batch_size)/(file_const.epoch_size)));
+            print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value, ' Epoch = %2f' % ((step * const.batch_size) / (config.epoch_size)));
             if(step != 0):
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
@@ -136,7 +135,7 @@ if __name__ == '__main__':
                 train_writer.flush()
 
                 if(step % 100 == 0):
-                    ckpt_file = os.path.join(file_const.model_save_path, file_const.model_save_name)
+                    ckpt_file = os.path.join(config.model_save_path, config.model_save_name)
                     saver.save(sess, ckpt_file)
 
 

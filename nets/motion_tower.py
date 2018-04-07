@@ -188,7 +188,7 @@ class MotionTower:
             sess.run(self.assign_operations);
 
 
-    def __init__(self, mode = tf.estimator.ModeKeys.TRAIN,train_motion_tower=True):
+    def __init__(self, mode = tf.estimator.ModeKeys.TRAIN,train_motion_tower=True,supervised=True):
         net_data = np.load(open(file_const.model_weights_filepath, "rb"), encoding="latin1").item()
         batch_size = None
         self.input_context = tf.placeholder(tf.float32,
@@ -197,7 +197,11 @@ class MotionTower:
                                                 const.context_channels),
                                             name='context_input')
 
-        num_classes = file_const.num_classes
+        if supervised:
+            num_classes = file_const.num_classes
+        else:
+            num_classes = file_const.unsupervised_num_classes
+
         self.supervised_labels = tf.placeholder(tf.int32, shape=(batch_size, num_classes), name='class_lbls')
 
         context = self.input_context

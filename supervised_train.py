@@ -4,13 +4,11 @@ import os
 import sys
 import data_sampling.data_args as data_args
 from nets.two_stream import TwoStreamNet
+from nets.motion_tower import MotionTower
 import constants as const
-import configuration as file_const
-#from data_sampling.tuple_loader import TupleLoader
-#from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
-from data_sampling.hmdb_tuple_loader import HMDBTupleLoader
-from data_sampling.ucf_tuple_loader import UCFTupleLoader
+import configuration as config
 import numpy as np
+from pydoc import locate
 from utils import os_utils
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
@@ -22,21 +20,23 @@ def gen_feed_dict(model,data_generator,subset,fix,args):
 
 if __name__ == '__main__':
 
-    save_model_dir = file_const.model_save_path;
+    save_model_dir = config.model_save_path;
     os_utils.touch_dir(save_model_dir)
     args = dict()
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
-    if(file_const.dataset_name == 'UCF101'):
-        img_generator = UCFTupleLoader(args)
-    elif(file_const.dataset_name == 'HMDB'):
-        img_generator = HMDBTupleLoader(args)
+
+    img_generator_class = locate(config.db_tuple_loader)
+    img_generator = img_generator_class(args)
 
     img_generator.next(const.Subset.TRAIN,supervised=True)
+    if config.use_two_stream:
+        load_alex_weights = True;
+        img2vec_model = TwoStreamNet(supervised=True,load_alex_weights=load_alex_weights,train_spatial_tower = False,train_motion_tower = True)
+    else:
+        load_alex_weights = False; ## There is no spatial tower
+        img2vec_model = MotionTower(mode = tf.estimator.ModeKeys.TRAIN,train_motion_tower=True,supervised=True)
 
-    load_alex_weights = True;
-
-    img2vec_model = TwoStreamNet(supervised=True,load_alex_weights=load_alex_weights,train_spatial_tower = False,train_motion_tower = True)
     model_loss = img2vec_model.supervised_loss
     model_accuracy = img2vec_model.supervised_accuracy
 
@@ -60,10 +60,10 @@ if __name__ == '__main__':
 
     sess = tf.InteractiveSession()
     now = datetime.now()
-    if(file_const.tensorbaord_file == None):
-        tb_path = file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
+    if(config.tensorbaord_file == None):
+        tb_path = config.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
     else:
-        tb_path = file_const.tensorbaord_dir + file_const.tensorbaord_file
+        tb_path = config.tensorbaord_dir + config.tensorbaord_file
 
     print(tb_path)
     if (os.path.exists(tb_path)):
@@ -84,7 +84,7 @@ if __name__ == '__main__':
 
     #sess.run(img2vec_model.assign_operations)
     #img2vec_model.print_means(sess);
-    ckpt_file = os.path.join(save_model_dir, file_const.model_save_name)
+    ckpt_file = os.path.join(save_model_dir, config.model_save_name)
     print('Model Path ',ckpt_file )
     if (os.path.exists(save_model_dir) and len(os.listdir(save_model_dir)) > 1):
         try:
@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
         if(step % const.logging_threshold == 0):
             print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value,
-                  ' Epoch = %2f' % ((step * const.batch_size) / (file_const.epoch_size)));
+                  ' Epoch = %2f' % ((step * const.batch_size) / (config.epoch_size)));
             if(step != 0):
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()

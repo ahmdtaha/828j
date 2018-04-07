@@ -50,6 +50,7 @@ class HMDBTupleLoader:
 
 
     def __init__(self, args):
+        print(self.__class__.__name__)
         self.train_videos, self.train_videos_lbls, self.train_videos_len= self.load_subset('train');
         self.val_videos, self.val_videos_lbls, self.val_videos_len= self.load_subset('val');
         #self.load_subset('test');

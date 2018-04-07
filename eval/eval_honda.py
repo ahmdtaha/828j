@@ -106,7 +106,7 @@ def eval_by_frame():
         num_frames = test_sessions_annotations[session]['s'][-1] -5;
         #print(test_sessions_annotations[session]['s'])
         #for center_frame_idx in range(6,num_frames-5): ## Start at 6 because frames start at 1!!
-        print('Number of frames' ,num_frames );
+        print('Number of frames' ,num_frames ,' in ',test_sessions[session]);
         #num_frames = 97
         for center_frame_idx in range(6, num_frames ,batch_size ):  ## Start at 6 because frames start at 1!!
 
