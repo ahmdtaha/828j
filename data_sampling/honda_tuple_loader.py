@@ -23,13 +23,13 @@ val_dir = 'val'
 class HondaTupleLoader:
 
     def load_subset(self,subset):
-        with open(config.honda_session_path+'/'+subset+'_session.txt', 'r') as fin:
+        with open(config.db_path+'/'+subset+'_session.txt', 'r') as fin:
             sessions = fin.read().strip().split('\n')
         num_sessions = len(sessions)
         sessions_annotations = [None] * num_sessions
 
         for vdz in range(num_sessions):
-            vdz_annotation_path = os.path.join(config.honda_session_path,'labels/'+sessions[vdz]+'_goal.pkl')
+            vdz_annotation_path = os.path.join(config.db_path,'labels/'+sessions[vdz]+'_goal.pkl')
             sessions_annotations[vdz] = os_utils.pkl_read(vdz_annotation_path)
 
         return sessions,num_sessions,sessions_annotations
@@ -67,9 +67,9 @@ class HondaTupleLoader:
     def get_context(self,center_idx,session,ordered=True):
         imgs = []
         for idx in [-5,-3,-1,1,3,5]:
-            img_path = os.path.join(config.honda_session_path, 'frames', session, 'frame_%04d.jpg' % (center_idx+idx));
+            img_path = os.path.join(config.db_path, 'frames', session, 'frame_%04d.jpg' % (center_idx+idx));
             if (not os.path.exists(img_path)):
-                img_path = os.path.join(config.honda_session_path, 'frames', session,
+                img_path = os.path.join(config.db_path, 'frames', session,
                                         'frame_%05d.jpg' % (center_idx + idx));
             img = imageio.imread(img_path);
             imgs.append(img)
@@ -92,9 +92,9 @@ class HondaTupleLoader:
 
     def get_img(self,frame_idx,session):
 
-        img_path = os.path.join(config.honda_session_path,'frames',session,'frame_%04d.jpg' % frame_idx);
+        img_path = os.path.join(config.db_path,'frames',session,'frame_%04d.jpg' % frame_idx);
         if(not os.path.exists(img_path )):
-            img_path = os.path.join(config.honda_session_path, 'frames', session, 'frame_%05d.jpg' % frame_idx);
+            img_path = os.path.join(config.db_path, 'frames', session, 'frame_%05d.jpg' % frame_idx);
         img = imageio.imread(img_path);
         return self.augment_img(img)
 
@@ -171,7 +171,7 @@ class HondaTupleLoader:
             vis_img(word, label, 'p_' + str(batch_idx), '_img')
             imgs = []
             for i in [-5,-3,-1,1,3,5]:
-                img_path = os.path.join(config.honda_session_path, 'frames', neg_session, 'frame_%04d.jpg' % (neg_center_idx+i));
+                img_path = os.path.join(config.db_path, 'frames', neg_session, 'frame_%04d.jpg' % (neg_center_idx+i));
                 img = imageio.imread(img_path);
                 imgs.append(img)
 

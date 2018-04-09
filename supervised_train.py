@@ -12,9 +12,12 @@ from pydoc import locate
 from utils import os_utils
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
-
-    words, context, lbl = data_generator.next(subset,supervised=True)
-    feed_dict = {model.input_words: words, model.input_context:context , model.supervised_labels: lbl}
+    if config.use_two_stream:
+        words, context, lbl = data_generator.next(subset,supervised=True)
+        feed_dict = {model.input_words: words, model.input_context:context , model.supervised_labels: lbl}
+    else:
+        words, context, lbl = data_generator.next(subset, supervised=True)
+        feed_dict = {model.input_context: context, model.supervised_labels: lbl}
 
     return feed_dict;
 
@@ -86,7 +89,7 @@ if __name__ == '__main__':
     #img2vec_model.print_means(sess);
     ckpt_file = os.path.join(save_model_dir, config.model_save_name)
     print('Model Path ',ckpt_file )
-    if (os.path.exists(save_model_dir) and len(os.listdir(save_model_dir)) > 1):
+    if (os.path.exists(save_model_dir) and len(os.listdir(save_model_dir)) > 2):
         try:
             # Try to restore everything if possible
             saver.restore(sess, ckpt_file)
@@ -101,12 +104,11 @@ if __name__ == '__main__':
         sess.run(img2vec_model.assign_operations);
 
 
-    train_loss = tf.summary.scalar('Train Loss', model_loss)
-    val_loss = tf.summary.scalar('Val Loss', model_loss)
-    model_acc_op = tf.summary.scalar('Val Accuracy', model_accuracy)
+    train_loss = tf.summary.scalar('Train_Loss', model_loss)
+    val_loss = tf.summary.scalar('Val_Loss', model_loss)
+    model_acc_op = tf.summary.scalar('Val_Accuracy', model_accuracy)
 
-
-
+    config.root_logger.info('Training started')
     for step in range(last_step,const.train_iters):
 
         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
