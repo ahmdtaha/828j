@@ -10,7 +10,8 @@ import tuple_generator_utils as gen_utils
 # TODO: possibly move some of these consts to configuration.py
 # Constants
 k_base_dir = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning'
-k_dataset_path = k_base_dir + '/datasets/ucf101'
+# k_dataset_path = k_base_dir + '/datasets/ucf101'
+k_dataset_path = k_base_dir + '/datasets/ucf101_downsampled'
 k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list.txt'
 k_activities_path = k_base_dir + '/datasets/ucfTrainTestlist/activities'
 k_batch_size = 4
@@ -21,6 +22,47 @@ k_output_dump_path = k_base_dir + '/outputs'
 
 
 def test_build_supervised_input_for_train():
+    dataset = tuple_gen.build_input(k_dataset_path, k_input_list_filepath,
+                                    k_activities_path, k_batch_size,
+                                    k_supervision_mode, k_run_mode, k_log_root,
+                                    num_threads=16)
+
+    iterator = dataset.make_initializable_iterator()
+    next_batch = iterator.get_next()
+
+    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+    sess.run(iterator.initializer)
+
+    num_batches = 3
+    for batch_i in range(num_batches):
+        (center_frames, motion_encodings, class_labels, filenames) = sess.run(
+            next_batch)
+
+        print('Storing sample output in ' + k_output_dump_path)
+        for i in range(k_batch_size):
+            print('Storing output for batch #%d, sample #%d (total: %d)' % (
+                  batch_i, i, batch_i*k_batch_size + i + 1))
+            print('class_label = %d -- filename = %s' % (class_labels[i],
+                                                         filenames[i]))
+            if k_batch_size > 1:
+                basename, ext = osp.splitext(osp.basename(filenames[i]))
+            else:
+                basename, ext = osp.splitext(osp.basename(filenames))
+
+            # save/pickle tuples
+            basename = basename.decode("utf-8")
+            out_pkl_path = osp.join(k_output_dump_path, basename + '.pkl') 
+            with open(out_pkl_path, 'wb') as f:
+                pickle.dump((center_frames, motion_encodings, class_labels,
+                             filenames), f)
+
+            # visualize tuples
+            gen_utils.visualize_saved_pickle(
+                out_pkl_path, k_output_dump_path,
+                output_prefix='test_sup_train_tuples_' + basename + '_')
+
+
+def test_build_supervised_input_for_train_queues():
     center_frames_op, motion_encoding_op, class_label_op, filenames_op = \
         tuple_gen.build_input(k_dataset_path, k_input_list_filepath,
                               k_activities_path, k_batch_size,

@@ -7,6 +7,25 @@ import pickle
 import traceback
 
 
+def standardize_frame(frame, crop_coords=None, allow_rotation=False):
+    # TODO: I think we should do that, right? Currently it is not activated..
+    # if height > width, flip frame 90 degrees
+    if allow_rotation and frame.shape[0] > frame.shape[1]:
+        frame = np.transpose(frame, [1, 0, 2])
+
+    if crop_coords is not None:
+        y_st, x_st = crop_coords
+        y_end = min(frame.shape[0], y_st + const.frame_height)
+        x_end = min(frame.shape[1], x_st + const.frame_width)
+        frame = frame[y_st : y_end, x_st : x_end, :]
+
+    # if frame is still not in standard size, then rescale it
+    if(frame.shape[0] != const.frame_height or
+       frame.shape[1] != const.frame_width):
+        frame = cv2.resize(frame, (const.frame_width, const.frame_height))
+
+    return frame
+
 def get_standard_frame(video, frame_index, crop_coords=None,
                        allow_rotation=False):
     """
@@ -45,6 +64,61 @@ def get_standard_frame(video, frame_index, crop_coords=None,
         frame = cv2.resize(frame, (const.frame_width, const.frame_height))
 
     return frame
+
+
+def create_stack_of_diffs_from_frames(frames, augment_flag):
+    """
+    Creates a stack of differences by converting the specified frames into
+    grayscale and taking their differences.
+
+    Args:
+        video: loaded video with imageio ffmpeg.
+        frame_inicies (list of ints): frame indices the constitute the stack.
+        augment_flag (bool): whether to apply data augmentation on the tuple
+            or not. Augmentation can be random cropping, channel splitting,
+            ... etc
+
+    Returns:
+        array (stack_size x height x width) representing the stack of diffs.
+        stack_size is len(frame_indices) - 1
+    """
+    num_frames = len(frames)
+    stack_of_diffs = np.zeros((const.frame_height, const.frame_width,
+                               num_frames - 1))
+
+    frame_height, frame_width, _ = frames[0].shape
+    if augment_flag:
+        rand_rgb_channel = np.random.choice(3)
+        rand_crop = np.random.rand();
+        crop_y = int(rand_crop * (frame_height - const.frame_height))
+        crop_x = int(rand_crop * (frame_width - const.frame_width))
+        crop_y = max(0, crop_y)
+        crop_x = max(0, crop_x)
+        crop_coords = (crop_y, crop_x)
+    else:
+        crop_coords = None
+
+    current_frame = standardize_frame(frames[0], crop_coords=crop_coords)
+    if augment_flag:
+        current_frame = np.squeeze(current_frame[:, :, rand_rgb_channel])
+    else:
+        current_frame = cv2.cvtColor(current_frame, cv2.COLOR_RGB2GRAY)
+
+    current_frame = current_frame.astype(np.int32)
+
+    for i in range(num_frames - 1):
+        next_frame = standardize_frame(frames[i + 1], crop_coords=crop_coords)
+        if augment_flag:
+            next_frame = np.squeeze(next_frame[:, :, rand_rgb_channel])
+        else:
+            next_frame = cv2.cvtColor(next_frame, cv2.COLOR_RGB2GRAY)
+
+        next_frame = next_frame.astype(np.int32)
+
+        stack_of_diffs[:, :, i] = current_frame - next_frame
+        current_frame = next_frame
+
+    return stack_of_diffs
 
 
 def create_stack_of_diffs(video, frame_indices, augment_flag):
