@@ -280,23 +280,33 @@ class TwoStreamNet:
         print(np.mean(word_dense),np.mean(context_dense ))
 
 
-    def __init__(self,supervised=False,train_spatial_tower=False,train_motion_tower=True,load_alex_weights=False):
+    def __init__(self,supervised=False,train_spatial_tower=False,train_motion_tower=True,load_alex_weights=False, input_words=None, input_context=None, supervised_labels=None):
         net_data = np.load(open(file_const.model_weights_filepath, "rb"), encoding="latin1").item()
 
         batch_size = None
-        self.input_words = tf.placeholder(tf.float32,
-                                          shape=(
-                                          batch_size, const.frame_height, const.frame_width, const.frame_channels),
-                                          name='words_input')
+        if input_words is not None:
+            self.input_words = input_words
+        else:
+            self.input_words = tf.placeholder(tf.float32,
+                                              shape=(
+                                              batch_size, const.frame_height, const.frame_width, const.frame_channels),
+                                              name='words_input')
 
-        self.input_context = tf.placeholder(tf.float32,
-                                            shape=(
-                                            batch_size, const.frame_height, const.frame_width, const.context_channels),
-                                            name='context_input')
+        if input_context is not None:
+            self.input_context = input_context
+        else:
+            self.input_context = tf.placeholder(tf.float32,
+                                                shape=(
+                                                batch_size, const.frame_height, const.frame_width, const.context_channels),
+                                                name='context_input')
 
         num_classes = file_const.num_classes
         unsupervised_num_classes = file_const.unsupervised_num_classes
-        self.supervised_labels = tf.placeholder(tf.int32, shape=(batch_size, num_classes), name='class_lbls')
+        if supervised_labels is not None:
+            self.supervised_labels = supervised_labels
+        else:
+            self.supervised_labels = tf.placeholder(tf.int32, shape=(batch_size, num_classes), name='class_lbls')
+
         self.unsupervised_labels = tf.placeholder(tf.int32, shape=(batch_size, unsupervised_num_classes ), name='gt_lbls')
 
         words = self.rgb_2_bgr(self.input_words)

@@ -12,7 +12,11 @@ import tuple_generator_utils as gen_utils
 k_base_dir = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning'
 # k_dataset_path = k_base_dir + '/datasets/ucf101'
 k_dataset_path = k_base_dir + '/datasets/ucf101_downsampled'
-k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list.txt'
+# k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list.txt'
+# k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list2.txt'
+# k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list3.txt'
+k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/trainlist01-no_labels.txt'
+# k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/trainlist01_filtered.txt'
 k_activities_path = k_base_dir + '/datasets/ucfTrainTestlist/activities'
 k_batch_size = 4
 k_supervision_mode = 'supervised'
@@ -37,6 +41,7 @@ def test_build_supervised_input_for_train():
     for batch_i in range(num_batches):
         (center_frames, motion_encodings, class_labels, filenames) = sess.run(
             next_batch)
+        print('Done with batch %d' % (batch_i + 1))
 
         print('Storing sample output in ' + k_output_dump_path)
         for i in range(k_batch_size):

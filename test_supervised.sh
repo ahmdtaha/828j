@@ -12,9 +12,10 @@ SPLIT_METADATA_DIR="$ROOT_DIR/datasets/ucfTrainTestlist"  # for UCF101
 # SPLIT_METADATA_DIR="$ROOT_DIR/datasets/testTrainMulti_7030_splits"  # for HMDB51
 
 DATASET_PATH="$ROOT_DIR/datasets/$DATASET"
-TEST_TUPLES_DIR="$DATASET_PATH/test_tuples"
+TEST_TUPLES_DIR="$DATASET_PATH/test_tuples_py36_lm"
 # TRAINED_MODEL_PATH="$ROOT_DIR/models/$DATASET.cpkt"
-TRAINED_MODEL_PATH=/vulcan/scratch/ahmdtaha/model/supervised_ucf101_20hrs/patch_model.ckpt
+# TRAINED_MODEL_PATH=/vulcan/scratch/ahmdtaha/model/supervised_ucf101_20hrs/patch_model.ckpt
+TRAINED_MODEL_PATH="$ROOT_DIR/model/sup_archive/taha_code_rerun_4epochs/patch_model.ckpt"
 # TRAINED_MODEL_PATH=/vulcan/scratch/ahmdtaha/model/unsupervised_supervised_ucf101/patch_model.ckpt
 # TRAINED_MODEL_PATH=/vulcan/scratch/ahmdtaha/model/unsupervised_ucf101/patch_model.ckpt
 

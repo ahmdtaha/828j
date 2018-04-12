@@ -11,7 +11,7 @@ import pickle
 import sys
 import time
 import traceback
-import tuple_generation_utils as gen_utils
+import tuple_generator_utils as gen_utils
 
 
 def _generate_and_save_test_tuples(video_path, output_path, sampling_fn):

@@ -1,5 +1,6 @@
 # from easydict import EasyDict as edict
 import argparse
+import configuration as file_const
 import constants as const
 import cv2
 import imageio
@@ -85,11 +86,19 @@ def _split_into_train_tuples(video_path, num_frames=6, step=15,
     class_name = video_path.split('/')[-2]
     class_label = np.int32(class_names_all.index(class_name))
     path_no_ext, _ = osp.splitext(video_path)
+    # FIXME: need to reshape filenames to be a batch of 1x1 tensors. This caused a runtime error for the class labels but fixed it with [[]]
     filenames = ['%s-frame_%d' % (path_no_ext, x) for x in
                  center_frames_indices]
 
-    return center_frames, stacks_of_diffs, [class_label] * len(chunks), \
-        filenames
+    # print('DBG NoneType: ', filenames, len(frames[0]))
+    # return center_frames, stacks_of_diffs, [[class_label]] * len(chunks), \
+    #     filenames
+
+    # class_labels = [[class_label]] * len(chunks)
+    class_label_hot_vec = np.zeros(file_const.num_classes, dtype=np.int32)
+    class_label_hot_vec[class_label] = 1
+    class_labels_hot_vec = [class_label_hot_vec] * len(chunks)
+    return center_frames, stacks_of_diffs, class_labels_hot_vec, filenames
 
 
 # def _split_into_train_tuples(video_path, num_frames=6, step=15,
@@ -379,12 +388,10 @@ def build_input(data_path, input_list_filepath, activities_list_path,
 
     # dataset of file names
     dataset = tf.data.TextLineDataset(input_list_filepath)
-    print('DBG: ', dataset)
 
     # dataset of file paths
     dataset = dataset.map(
         lambda filename: tf.string_join([data_path + '/', filename]))
-    print('DBG: ', dataset)
 
     # FIXME: you cannot make a python tuple out of multiple training tuples per video
     # decode each video into tuples
@@ -392,14 +399,22 @@ def build_input(data_path, input_list_filepath, activities_list_path,
         lambda filename: tuple(tf.py_func(
             _split_into_train_tuples, [filename], [
             tf.float32, tf.float32, tf.int32, tf.string])))
-    print('DBG: ', dataset)
 
     # FIXME: rename variables if this checked out
     dataset = dataset.flat_map(
         lambda center_frames, stacks_of_diffs, class_labels, filenames:
             tf.data.Dataset.from_tensor_slices((
                 center_frames, stacks_of_diffs, class_labels, filenames)))
-    print('DBG: ', dataset)
+
+    # dummy reshape to make tensor shapes known for nets/two_stream.py assertions
+    def dummy_reshape(center_frame, stack_of_diffs, class_label, filename):
+        center_frame = tf.reshape(center_frame, [const.frame_height,
+                                  const.frame_width, 3])
+        stack_of_diffs = tf.reshape(stack_of_diffs, [const.frame_height,
+                                    const.frame_width, const.context_channels])
+        return center_frame, stack_of_diffs, class_label, filename
+
+    dataset = dataset.map(dummy_reshape)
 
     # Shuffle training examples and create mini-batch
     dataset = dataset.shuffle(buffer_size=5000)  # FIXME TODO: rethink buffer_size

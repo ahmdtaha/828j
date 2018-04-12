@@ -12,7 +12,7 @@ SPLIT_METADATA_DIR="$ROOT_DIR/datasets/ucfTrainTestlist"  # for UCF101
 # SPLIT_METADATA_DIR="$ROOT_DIR/datasets/testTrainMulti_7030_splits"  # for HMDB51
 
 DATASET_PATH="$ROOT_DIR/datasets/$DATASET"
-TEST_TUPLES_DIR="$DATASET_PATH/test_tuples"
+TEST_TUPLES_DIR="$DATASET_PATH/test_tuples_py36_lm"
 NUM_THREADS=16
 
 python generate_test_tuples.py \
