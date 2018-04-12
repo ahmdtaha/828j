@@ -6,6 +6,7 @@ import utils.os_utils as os_utils
 import imageio
 import traceback
 import pandas as pd
+import numpy as np
 
 def extract_frames():
     original_db = '/Users/ahmedtaha/Documents/dataset/hmdb51_org'
@@ -51,12 +52,13 @@ def extract_frames():
                                     'video-len': video_len})
     dataset_summary.to_pickle(sampled_db + '/db_summary.pkl')
     dataset_summary.to_csv(sampled_db + '/db_summary.csv')
-if __name__ == '__main__':
+
+def divide():
     sampled_db = '/Users/ahmedtaha/Documents/dataset/hmdb51_sampled'
-    dataset_summary = pd.read_pickle(sampled_db  + '/db_summary.pkl')
+    dataset_summary = pd.read_pickle(sampled_db + '/db_summary.pkl')
     print(dataset_summary.shape)
 
-    valid_dataset_summary = dataset_summary[dataset_summary ['video-len'] >= 7]
+    valid_dataset_summary = dataset_summary[dataset_summary['video-len'] >= 7]
     print(valid_dataset_summary.shape)
     valid_dataset_summary = valid_dataset_summary.sample(frac=1)
     print(valid_dataset_summary.count)
@@ -64,7 +66,7 @@ if __name__ == '__main__':
     val = int(0.1 * valid_dataset_summary.shape[0])
 
     train_set = valid_dataset_summary.iloc[:train]
-    val_set = valid_dataset_summary.iloc[train:train+val]
+    val_set = valid_dataset_summary.iloc[train:train + val]
     test_set = valid_dataset_summary.iloc[train + val:]
 
     train_set.to_pickle(sampled_db + '/train_db.pkl')
@@ -75,6 +77,44 @@ if __name__ == '__main__':
 
     test_set.to_pickle(sampled_db + '/test_db.pkl')
     test_set.to_csv(sampled_db + '/test_db.csv')
+if __name__ == '__main__':
+    splits_path = '/Users/ahmedtaha/Documents/dataset/testTrainMulti_7030_splits'
+
+    sampled_db = '/Users/ahmedtaha/Documents/dataset/hmdb51_sampled'
+    dataset_summary = pd.read_pickle(sampled_db + '/db_summary.pkl')
+    num_files = dataset_summary.shape[0];
+    splits = np.zeros((num_files,3))
+
+    dataset_summary.to_pickle(sampled_db + '/db_summary_splits.pkl')
+    dataset_summary.to_csv(sampled_db + '/db_summary_splits.csv')
+    dataset_summary['split1'] = splits[:,0];
+    dataset_summary['split2'] = splits[:, 1];
+    dataset_summary['split3'] = splits[:, 2];
+
+    #dataset_summary.to_pickle(sampled_db + '/db_summary_splits.pkl')
+    #dataset_summary.to_csv(sampled_db + '/db_summary_splits.csv')
+
+    for i in range(1,4):
+        current_split = '_test_split'+str(i)+'.txt'
+        files = os_utils.get_files(splits_path,append_base=True,extension=current_split )
+        for file in files:
+            act_vdz = os_utils.txt_read(file)
+            for act_vdx in act_vdz:
+                name,id = act_vdx.split()
+                name = os_utils.get_file_name_ext(name)[0]
+                print('Name ',name)
+                print('ID ', id)
+                #row = dataset_summary.loc[dataset_summary['video-name'] == name]
+                #row['split'+str(i)] = id
+                dataset_summary.loc[dataset_summary['video-name'] == name,'split'+str(i)] = int(id)
+                #print(dataset_summary.loc[dataset_summary['video-name'] == name])
+
+
+    dataset_summary.to_pickle(sampled_db + '/db_summary_splits.pkl')
+    dataset_summary.to_csv(sampled_db + '/db_summary_splits.csv')
+
+
+
 
 
 

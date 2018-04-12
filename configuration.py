@@ -7,6 +7,7 @@ epoch_size = 500000
 dataset_name = 'UCF101'
 db_split = 1
 use_two_stream  = True
+reduce_overfit = False
 dataset_dir = dataset_name
 if(dataset_name == 'UCF50'):
     num_classes = 50
@@ -40,7 +41,7 @@ tensorbaord_file = os.path.basename(os.path.normpath(model_save_path)) #'2018030
 
 root_logger = logging.getLogger('root_logger')
 root_logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler(os.path.join(model_save_path ,'debug.txt'))
+fh = logging.FileHandler(os.path.join(model_save_path ,'debug.txt'),mode='a')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 fh.setFormatter(formatter)
 root_logger.addHandler(fh)

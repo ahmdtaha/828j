@@ -315,8 +315,8 @@ class TwoStreamNet:
             self.layers2 =  self.build_net(context, net_data,train_params=train_motion_tower,prefix='cntxt_',fc6_num_units=fc6_num_units )
             self.fcf_context_dense = self.layers2[-1];
 
-
-        fusion_layer = self.fcf_word_dense - self.fcf_context_dense
+        ## Change fusion layer to be Addition instead of subtraction
+        fusion_layer = self.fcf_word_dense + self.fcf_context_dense
 
 
 

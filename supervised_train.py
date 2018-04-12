@@ -12,11 +12,16 @@ from pydoc import locate
 from utils import os_utils
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
+    words, context, lbl = data_generator.next(subset, supervised=True)
     if config.use_two_stream:
-        words, context, lbl = data_generator.next(subset,supervised=True)
+        if config.reduce_overfit and subset==const.Subset.TRAIN:
+            supressed_frames = np.random.choice(const.batch_size,const.batch_size//2,replace=False);
+            words[supressed_frames,:,:,:] = 0;
+
+
         feed_dict = {model.input_words: words, model.input_context:context , model.supervised_labels: lbl}
     else:
-        words, context, lbl = data_generator.next(subset, supervised=True)
+
         feed_dict = {model.input_context: context, model.supervised_labels: lbl}
 
     return feed_dict;
@@ -47,19 +52,26 @@ if __name__ == '__main__':
 
     optimizer = tf.train.AdamOptimizer(const.learning_rate, beta1=0.5)
     grads = optimizer.compute_gradients(model_loss)
-
-
     for i, (g, v) in enumerate(grads):
         if g is not None:
             grads[i] = (tf.clip_by_norm(g, 5), v)
 
     train_op = optimizer.apply_gradients(grads)
 
-    trained_variables = []
+
+    for v in tf.global_variables():
+        config.root_logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
+
+    config.root_logger.info('=========================================================')
     for v in tf.trainable_variables():
         print(v.name, '\t', v.shape)
-        trained_variables.append(str(v.name) + '\t' + str(v.shape))
-    os_utils.txt_write(os.path.join(save_model_dir, 'trained_var.txt'), trained_variables)
+        config.root_logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
+
+    config.root_logger.info('=========================================================')
+    config.root_logger.info('Reduce Augmentation '+str(config.reduce_overfit))
+    config.root_logger.info('Two Stream Model? ' + str(config.use_two_stream))
+    config.root_logger.info('DB? ' + str(config.dataset_name))
+    config.root_logger.info('DB-Split? ' + str(config.db_split))
 
     sess = tf.InteractiveSession()
     now = datetime.now()
@@ -76,8 +88,10 @@ if __name__ == '__main__':
         for e in tb_iter:
             last_step = e.step;
         print('Continue on previous TB file ', tb_path, ' with starting step', last_step);
+        config.root_logger.info('Continue on previous TB file '+ tb_path+ ' with starting step'+ str(last_step))
     else:
         print('New TB file *********** ', tb_path);
+        config.root_logger.info('New TB file *********** '+ tb_path)
         last_step = 0;
 
 
@@ -85,8 +99,7 @@ if __name__ == '__main__':
     tf.global_variables_initializer().run()
     saver = tf.train.Saver()  # saves variables learned during training
 
-    #sess.run(img2vec_model.assign_operations)
-    #img2vec_model.print_means(sess);
+
     ckpt_file = os.path.join(save_model_dir, config.model_save_name)
     print('Model Path ',ckpt_file )
     if (os.path.exists(save_model_dir) and len(os.listdir(save_model_dir)) > 2):
@@ -94,13 +107,15 @@ if __name__ == '__main__':
             # Try to restore everything if possible
             saver.restore(sess, ckpt_file)
             print('Model Loaded Normally');
+            config.root_logger.info('Model Loaded Normally')
         except:
             ## If not, load as much as possible
             img2vec_model.load_pretrained(sess, ckpt_file);
             print('Pretrained Weights loaded, while some layers are randomized')
-
+            config.root_logger.info('Pretrained Weights loaded, while some layers are randomized')
     elif load_alex_weights:
         print('Loading img2vec_model.assign_operations:',len(img2vec_model.assign_operations));
+        config.root_logger.info('Loading img2vec_model.assign_operations:'+ str(len(img2vec_model.assign_operations)))
         sess.run(img2vec_model.assign_operations);
 
 
@@ -126,19 +141,6 @@ if __name__ == '__main__':
 
                 feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, None, args);
                 val_loss_op,accuracy_op= sess.run([val_loss,model_acc_op], feed_dict=feed_dict)
-
-
-                # if(step % 1000 == 0):
-                #     ## Inspect true positive (TP), FP, TN, TP per class
-                #     val_acc= np.zeros((file_const.num_classes,file_const.num_classes));
-                #     for class_i in range(file_const.num_classes):
-                #         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, class_i, args);
-                #         prediction = sess.run(img2vec_model.class_prediction, feed_dict=feed_dict)
-                #         #bins = np.bincount(prediction,minlength=10);
-                #         bins = np.histogram(prediction, np.arange(0, file_const.num_classes+1, 1))[0]
-                #         val_acc[class_i,:] = bins;
-                #     utils.pkl_write('./dump/val_acc.pkl',val_acc);
-
 
                 train_writer.add_run_metadata(run_metadata, 'step%03d' % step)
 
