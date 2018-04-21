@@ -39,6 +39,7 @@ class HondaTupleLoader:
 
         print('Train ',self.num_train_sessions, ' Val ',self.num_val_sessions)
 
+        config.root_logger.info('Train ' + str(self.num_train_sessions) + ' Val ' + str(self.num_val_sessions))
 
     def imgs2sod(self,imgs,ordered=True):
 

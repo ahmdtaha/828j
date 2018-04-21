@@ -6,13 +6,16 @@ import data_sampling.data_args as data_args
 from nets.motion_tower import  MotionTower
 import constants as const
 import configuration as file_const
-from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
+#from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
+from data_sampling.hmdb_tuple_loader import HMDBTupleLoader as TupleLoader
 import numpy as np
 from utils import os_utils
 
+supervised = False
+
 def gen_feed_dict(model,data_generator,subset,fix,args):
 
-    words, context, lbl = data_generator.next(subset,supervised=True)
+    words, context, lbl = data_generator.next(subset,supervised=supervised)
     feed_dict = {model.input_context:context , model.supervised_labels: lbl}
 
     return feed_dict;
@@ -21,16 +24,17 @@ if __name__ == '__main__':
 
     save_model_dir = file_const.model_save_path;
     os_utils.touch_dir(save_model_dir)
+
     args = dict()
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
 
     img_generator = TupleLoader(args)
-    img_generator.next(const.Subset.TRAIN,supervised=True)
+    img_generator.next(const.Subset.TRAIN,supervised=supervised)
 
     load_alex_weights = False;
 
-    motion_model = MotionTower(mode=tf.estimator.ModeKeys.TRAIN, train_motion_tower = False)
+    motion_model = MotionTower(mode=tf.estimator.ModeKeys.TRAIN, train_motion_tower = True,supervised=supervised)
     model_loss = motion_model.supervised_loss
     model_accuracy = motion_model.supervised_accuracy
 
@@ -77,8 +81,6 @@ if __name__ == '__main__':
 
 
     saver = tf.train.Saver()  # saves variables learned during training
-    #sess.run(img2vec_model.assign_operations)
-    #img2vec_model.print_means(sess);
     ckpt_file = os.path.join(save_model_dir, file_const.model_save_name)
     motion_model.load_weights(sess,saver,ckpt_file,save_model_dir,load_alex_weights);
 

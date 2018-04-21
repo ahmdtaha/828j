@@ -56,6 +56,7 @@ class HMDBTupleLoader:
         #self.load_subset('test');
 
         print('Train ',len(self.train_videos_lbls), ' Val ',len(self.val_videos_lbls))
+        config.root_logger.info('Train ' + str(len(self.train_videos_lbls)) + ' Val ' + str(len(self.val_videos_lbls)))
         if(config.dataset_name != 'HMDB'):
             print('Something is wrong with dataset, double check the config')
             sys.exit(1)
@@ -69,10 +70,21 @@ class HMDBTupleLoader:
         rand_rgb_channel = np.random.choice(3);
         stack_diff = np.zeros((const.frame_height, const.frame_width, const.context_channels))
 
-        if (ordered):
-            frames_order = np.arange(const.context_channels + 1)
-        else:
-            frames_order = np.random.permutation(const.context_channels + 1)
+        ## Random order
+        # if (ordered):
+        #     c = -1;
+        #     frames_order = np.arange(const.context_channels + 1)
+        # else:
+        #     c = 0;
+        #     frames_order = np.random.permutation(const.context_channels + 1)
+
+        # Swtich two frames only to make it more difficult
+        frames_order = np.arange(const.context_channels + 1)
+        c = -1;
+        if (not ordered):
+            c = np.random.choice(len(frames_order),1,replace=False);
+            n =  (c + 1) %len(frames_order)
+            frames_order[c],frames_order[n] = frames_order[n],frames_order[c]
 
         for i in range(const.context_channels):
             current_frame = imgs[frames_order[i]][y:y+int(imgs[0].shape[0] * 0.8), x:x+int(imgs[0].shape[1] * 0.8),rand_rgb_channel];
@@ -83,14 +95,16 @@ class HMDBTupleLoader:
 
             stack_diff[:,:,i] = current_frame.astype(np.int32) - next_frame.astype(np.int32);
 
-        return stack_diff;
+        return stack_diff,c;
 
-    def get_context(self,center_idx,session,ordered=True):
+    def get_context(self,center_idx,session,ordered=True,batch_idx=0,verbose=False):
         imgs = []
         for idx in [-3,-2,-1,1,2,3]:
             img_path = os.path.join(config.db_path, session, 'frame_%04d.jpg' % (center_idx+idx));
             img = imageio.imread(img_path);
             imgs.append(img)
+        if verbose:
+            vis_motion(imgs,center_idx,'p_'+str(batch_idx),'_img')
         return self.imgs2sod(imgs,ordered)
 
 
@@ -124,7 +138,7 @@ class HMDBTupleLoader:
 
 
         word = self.get_img(pos_center_idx, pos_session)
-        context = self.get_context(neg_center_idx, neg_session, ordered)
+        context,switched_frame = self.get_context(neg_center_idx, neg_session, ordered)
 
         visualize = False
         if(visualize):
@@ -135,18 +149,18 @@ class HMDBTupleLoader:
                 label = 3;
 
                 vis_sod(context, label, 'p_' + str(batch_idx), '_sod_u')
-                tmp = self.get_context(neg_center_idx, neg_session, ordered=True) # Just to compare the ordered with unordered
+                tmp,_ = self.get_context(neg_center_idx, neg_session, ordered=True) # Just to compare the ordered with unordered
                 vis_sod(tmp, label, 'p_' + str(batch_idx), '_sod_o')
 
             vis_img(word, label, 'p_' + str(batch_idx), '_img')
             imgs = []
             for i in [-5,-3,-1,1,3,5]:
-                img_path = os.path.join(config.honda_session_path, 'frames', neg_session, 'frame_%04d.jpg' % (neg_center_idx+i));
+                img_path = os.path.join(config.db_path, 'frames', neg_session, 'frame_%04d.jpg' % (neg_center_idx+i));
                 img = imageio.imread(img_path);
                 imgs.append(img)
 
             vis_frames(imgs,label, 'p_' + str(batch_idx), '_imgs')
-        return word,context
+        return word,context,switched_frame
 
     def load_temporal_tuple(self, pos_tuple, frame_sampling_idx, batch_idx, current_sessions, current_sessions_lbl,current_sessions_len,ordered):
         video = current_sessions[pos_tuple]
@@ -160,13 +174,27 @@ class HMDBTupleLoader:
 
         imgs = []
         for idx in imgs_list:
-            img_path = os.path.join(config.hmdb_session_path, video, 'frame_%04d.jpg' % (center_idx + idx));
+            img_path = os.path.join(config.db_path, video, 'frame_%04d.jpg' % (center_idx + idx));
 
             img = imageio.imread(img_path);
             imgs.append(img)
         return self.imgs2sod(imgs, ordered)
 
 
+
+    def load_temporal_pos_tuple(self, pos_tuple, frame_sampling_idx, batch_idx, current_sessions, current_sessions_lbl,
+                       current_sessions_len, ordered=True):
+        video = current_sessions[pos_tuple]
+        video_len = current_sessions_len[pos_tuple]
+        video_lbl = current_sessions_lbl[pos_tuple]
+
+        center_idx = int(3 + frame_sampling_idx * (video_len - 7));
+        context,switched_frame = self.get_context(center_idx, video, ordered,batch_idx,verbose=False)
+
+        video_lbl = np.random.randint(0, 7, 1);
+        center_idx = center_idx + video_lbl - 3;
+        word = self.get_img(center_idx, video)
+        return word, context, video_lbl,switched_frame;
 
     def load_pos_tuple(self, pos_tuple, frame_sampling_idx, batch_idx, current_sessions, current_sessions_lbl,current_sessions_len,ordered=True):
         video = current_sessions[pos_tuple]
@@ -175,12 +203,12 @@ class HMDBTupleLoader:
         center_idx = int(3 + frame_sampling_idx * (video_len -7));
 
         word = self.get_img(center_idx, video)
-        context = self.get_context(center_idx, video , ordered)
-        return word,context,video_lbl;
+        context,switched_frame = self.get_context(center_idx, video , ordered)
+        return word,context,video_lbl,switched_frame;
 
-    def unsupervised_next_temporal(self,subset):
-
-
+    ## link spatial to temporal representation
+    ## ASk Question: which frame is that??
+    def temporal_unsupervised_next(self, subset):
         if (subset == const.Subset.TRAIN):
             subset_size = len(self.train_videos)
             current_sessions = self.train_videos
@@ -192,32 +220,28 @@ class HMDBTupleLoader:
             current_sessions = self.val_videos
             current_sessions_lbl = self.val_videos_lbls
             current_sessions_len = self.val_videos_len
-
         else:
             print('Only Train and val subset supported')
             sys.exit(1)
 
         pos_tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
-        frame_sampling_idx= np.random.rand(const.batch_size);
-        contexts = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.context_channels))
 
+        words = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.frame_channels))
+        contexts = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.context_channels))
+        frame_sampling_idx = np.random.rand(const.batch_size);
         labels = np.zeros((const.batch_size), dtype=np.int32)
 
-        sampling_ratio = np.random.randint(low=-1, high=const.context_channels, size=(const.batch_size));
-
-        sample_count = np.zeros(4);
         for batch_idx in np.arange(0, const.batch_size):
-
-            labels[batch_idx] = sampling_ratio[batch_idx]+1;
-            context= self.load_temporal_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx],batch_idx ,
-                                                     current_sessions,current_sessions_lbl,current_sessions_len,ordered=sampling_ratio[batch_idx]);
-
+            word, context, lbl,_ = self.load_temporal_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx], batch_idx,
+                                                   current_sessions, current_sessions_lbl, current_sessions_len,
+                                                   ordered=True);
+            words[batch_idx, :, :] = word
             contexts[batch_idx, :, :] = context
+            labels[batch_idx] = lbl
 
-        #print(sample_count)
-        labels_hot_vector = os_utils.hot_one_vector(labels,const.context_channels+1);
 
-        return None, contexts, labels_hot_vector
+        #labels_hot_vector = os_utils.hot_one_vector(labels, config.unsupervised_num_classes);
+        return words, contexts, labels
 
     def unsupervised_next(self,subset):
 
@@ -253,23 +277,23 @@ class HMDBTupleLoader:
             if (sampling_ratio[batch_idx] < 0.25):
                 ## Same Image , Ordered
                 labels[batch_idx] = 0;
-                word,context,_ = self.load_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx],batch_idx ,
+                word,context,_,_ = self.load_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx],batch_idx ,
                                                      current_sessions,current_sessions_lbl,current_sessions_len,ordered=True);
             elif (sampling_ratio[batch_idx] < 0.5):
                 ## Same Image , UnOrdered
                 labels[batch_idx] = 1;
-                word, context,_ = self.load_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx],batch_idx ,
+                word, context,_,_ = self.load_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx],batch_idx ,
                                                       current_sessions,current_sessions_lbl,current_sessions_len,ordered=False);
             elif (sampling_ratio[batch_idx] < 0.75):
                 ## Different Image , Ordered
                 labels[batch_idx] = 2;
-                word, context = self.load_pos_neg_tuple(pos_tuple[batch_idx],neg_tuple[batch_idx],
+                word, context,_ = self.load_pos_neg_tuple(pos_tuple[batch_idx],neg_tuple[batch_idx],
                                                         frame_sampling_idx[batch_idx], batch_idx, current_sessions,
                                                         current_sessions_len, ordered=True);
             else:
                 ## Different Image , UnOrdered
                 labels[batch_idx] = 3;
-                word, context = self.load_pos_neg_tuple(pos_tuple[batch_idx], neg_tuple[batch_idx],
+                word, context,_ = self.load_pos_neg_tuple(pos_tuple[batch_idx], neg_tuple[batch_idx],
                                                         frame_sampling_idx[batch_idx], batch_idx, current_sessions,
                                                         current_sessions_len, ordered=False);
 
@@ -278,7 +302,53 @@ class HMDBTupleLoader:
             contexts[batch_idx, :, :] = context
 
         #print(sample_count)
-        labels_hot_vector = os_utils.hot_one_vector(labels,4);
+        labels_hot_vector = os_utils.hot_one_vector(labels,config.unsupervised_num_classes);
+        return words, contexts, labels_hot_vector
+
+
+    ## Word is not necessary at the center
+    ## Regress the correct position of the word frame
+    def unsupervised_reg_next(self,subset):
+        if (subset == const.Subset.TRAIN):
+            subset_size = len(self.train_videos)
+            current_sessions = self.train_videos
+            current_sessions_lbl = self.train_videos_lbls
+            current_sessions_len = self.train_videos_len
+
+        elif (subset == const.Subset.VAL):
+            subset_size = len(self.val_videos)
+            current_sessions = self.val_videos
+            current_sessions_lbl = self.val_videos_lbls
+            current_sessions_len = self.val_videos_len
+        else:
+            print('Only Train and val subset supported')
+            sys.exit(1)
+
+        pos_tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
+        frame_sampling_idx= np.random.rand(const.batch_size);
+        neg_tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
+
+        words = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.frame_channels))
+        contexts = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.context_channels))
+        labels = np.zeros((const.batch_size), dtype=np.int32)
+        regs = np.zeros((const.batch_size), dtype=np.int32)
+
+        sampling_ratio = np.random.rand(const.batch_size);
+
+        sample_count = np.zeros(4);
+        for batch_idx in np.arange(0, const.batch_size):
+            ## Same Image , Ordered
+            labels[batch_idx] = 0;
+            word,context,_,switched_frame = self.load_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx],batch_idx ,
+                                                 current_sessions,current_sessions_lbl,current_sessions_len,ordered=True);
+
+            sample_count[labels[batch_idx]] +=1
+            words[batch_idx, :, :] = word
+            contexts[batch_idx, :, :] = context
+            regs[batch_idx] = switched_frame
+
+        #print(sample_count)
+        labels_hot_vector = os_utils.hot_one_vector(labels,config.unsupervised_num_classes);
         return words, contexts, labels_hot_vector
 
 
@@ -406,10 +476,16 @@ class HMDBTupleLoader:
         if supervised :
             return self.supervised_next(subset)
         else:
-            return self.unsupervised_next(subset)
+            #return self.unsupervised_next(subset)
+            return self.temporal_unsupervised_next(subset)
 
 def vis_img(img,label,prefix,suffix):
     cv2.imwrite(config.dump_path + prefix + '_' + str(label) + suffix + '.png',img)
+
+def vis_motion(images,label,prefix,suffix):
+    for j in range(5):
+        images.append(np.zeros((const.frame_height, const.frame_width), dtype=np.uint8))
+    imageio.mimsave(config.dump_path + prefix + '_' + str(label) + suffix + '.gif', images, duration=0.5)
 
 def vis_sod(stack_diff,label,prefix,suffix):
     images = []
@@ -419,9 +495,8 @@ def vis_sod(stack_diff,label,prefix,suffix):
         im = im.astype(np.uint8)
         images.append(im)
         #cv2.imwrite(config.dump_path + prefix + '_'  + str(j) + suffix + '.png', im)
-    for j in range(5):
-        images.append(np.zeros((const.frame_height, const.frame_width), dtype=np.uint8))
-    imageio.mimsave(config.dump_path + prefix + '_' + str(label) + suffix + '.gif', images,duration=0.5)
+    vis_motion(images,label,prefix,suffix)
+
 
 def vis_frames(images,label,prefix,suffix):
     for j in range(5):
@@ -434,6 +509,13 @@ if __name__ == '__main__':
     args[data_args.data_augmentation_enabled] = False
     vdz_dataset = HMDBTupleLoader(args);
     words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=False)
+    print(labels )
+    for batch_idx in range(contexts.shape[0]):
+        lbl = labels[batch_idx]
+        if(np.prod(lbl.shape) > 1):
+            lbl = np.argmax(labels[batch_idx]);
+        vis_img(words[batch_idx,:],lbl ,'p_'+str(batch_idx),'_img')
+        vis_sod(contexts[batch_idx,:],lbl ,'p_'+str(batch_idx),'_sod')
     #print(np.unique(np.argmax(labels,axis=1)))
     # print(labels)
     # for batch_idx in range(contexts.shape[0]):

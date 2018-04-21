@@ -79,7 +79,7 @@ class UCFTupleLoader:
 
         np.random.seed(int(time.time()))
         print('Train ',len(self.train_videos_lbls), ' Val ',len(self.val_videos_lbls))
-
+        config.root_logger.info('Train '+str(len(self.train_videos_lbls))+ ' Val '+ str(len(self.val_videos_lbls)))
 
     def imgs2sod(self,imgs,ordered=True):
 

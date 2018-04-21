@@ -4,10 +4,13 @@ import logging
 
 
 epoch_size = 500000
-dataset_name = 'UCF101'
+dataset_name = 'HMDB'
 db_split = 1
 use_two_stream  = True
-reduce_overfit = False
+
+dropout_rate = 0.2;
+unsup_weight = 100;
+
 dataset_dir = dataset_name
 if(dataset_name == 'UCF50'):
     num_classes = 50
@@ -23,7 +26,9 @@ elif dataset_name == 'honda':
     num_classes = 11
     db_path = '/Users/ahmedtaha/Documents/dataset/honda_100h'
     db_tuple_loader = 'data_sampling.honda_tuple_loader.HondaTupleLoader'
-unsupervised_num_classes = 4
+
+#unsupervised_num_classes = 4
+unsupervised_num_classes = 7
 
 tensorbaord_dir = './tb/'
 
@@ -52,3 +57,5 @@ dump_path = '/Users/ahmedtaha/Documents/dataset/dump/'
 o3n_weights_path = '/Users/ahmedtaha/Documents/dataset/weights/split3.mat'
 
 
+## old ununsed flags
+reduce_overfit = False

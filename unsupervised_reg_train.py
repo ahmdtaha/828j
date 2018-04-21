@@ -3,22 +3,22 @@ from datetime import datetime
 import os
 import sys
 import data_sampling.data_args as data_args
-from nets.two_stream import TwoStreamNet
+from nets.two_stream_reg import TwoStreamRegNet
 import constants as const
 import configuration as config
 from pydoc import locate
 from utils import os_utils
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
-    if args[data_args.gen_nearby_frame]:
-        words,nearby, context, lbl = data_generator.next(subset)
-        feed_dict = {model.input_words: words,model.nearby_words: nearby, model.input_context: context, model.unsupervised_labels: lbl}
-    else:
-        words, context, lbl = data_generator.next(subset)
-        feed_dict = {model.input_words: words, model.input_context: context, model.unsupervised_labels: lbl}
 
-    return feed_dict;
+    words, context, lbl = data_generator.next(subset)
+    feed_dict = {model.input_words: words, model.input_context: context, model.unsupervised_regs: lbl}
+
+    return feed_dict,lbl;
 
 
 if __name__ == '__main__':
@@ -38,9 +38,9 @@ if __name__ == '__main__':
     img_generator.next(const.Subset.TRAIN)
 
     load_alex_weights = True;
-    img2vec_model = TwoStreamNet(load_alex_weights=load_alex_weights)
+    img2vec_model = TwoStreamRegNet(load_alex_weights=load_alex_weights)
     model_loss = img2vec_model.loss
-    model_accuracy = img2vec_model.accuracy
+
 
 
 
@@ -94,40 +94,39 @@ if __name__ == '__main__':
 
     train_loss = tf.summary.scalar('Train_Loss', model_loss)
     val_loss = tf.summary.scalar('Val_Loss', model_loss)
-    model_acc_op = tf.summary.scalar('Val_Accuracy', model_accuracy)
-
-    pos_acc_op = tf.summary.scalar('PosAccuracy', model_accuracy)
-    neg_acc_op = tf.summary.scalar('NegAccuracy', model_accuracy)
 
 
 
     for step in range(last_step,const.train_iters):
 
-        feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
-        model_loss_value,accuracy_value, _ = sess.run([model_loss,model_accuracy,train_op], feed_dict)
-
-        #debug_list = [img2vec_model.diff,img2vec_model.smoothness_loss,train_op]
-        #print(sess.run(debug_list, feed_dict),feed_dict)
+        feed_dict,_ = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
+        model_loss_value, _ = sess.run([model_loss, train_op], feed_dict)
 
         if(step % const.logging_threshold == 0):
-            print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value, ' Epoch = %2f' % ((step * const.batch_size) / (config.epoch_size)));
+            print('i= ', step, ' Loss= ', model_loss_value, ' Epoch = %2f' % ((step * const.batch_size) / (config.epoch_size)));
             if(step != 0):
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
 
-                feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
-                train_loss_op,_= sess.run([train_loss,train_op],feed_dict=feed_dict)
-
-                feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, None, args);
-                val_loss_op,accuracy_op= sess.run([val_loss,model_acc_op], feed_dict=feed_dict)
+                feed_dict,gt = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
+                model_loss_value,train_loss_op,predictions,_= sess.run([model_loss,train_loss,img2vec_model.unsupervised_regression,train_op],feed_dict=feed_dict)
 
 
+                plt.hist(predictions, [0, 1, 2, 3, 4, 5, 6])
+                plt.savefig(config.dump_path + 'train_hist.png')
+                plt.close()
+
+                feed_dict,gt = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, None, args);
+                val_loss_op,predictions = sess.run([val_loss,img2vec_model.unsupervised_regression], feed_dict=feed_dict)
+
+                plt.hist(predictions,[0,1, 2, 3, 4,5,6])
+                plt.savefig(config.dump_path+'val_hist.png')
+                plt.close()
                 train_writer.add_run_metadata(run_metadata, 'step%03d' % step)
 
                 train_writer.add_summary(train_loss_op, step)
                 train_writer.add_summary(val_loss_op, step)
 
-                train_writer.add_summary(accuracy_op, step)
                 train_writer.flush()
 
                 if(step % 100 == 0):
