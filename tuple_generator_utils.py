@@ -118,7 +118,7 @@ def create_stack_of_diffs_from_frames(frames, augment_flag):
         stack_of_diffs[:, :, i] = current_frame - next_frame
         current_frame = next_frame
 
-    return stack_of_diffs
+    return stack_of_diffs, crop_coords
 
 
 def create_stack_of_diffs(video, frame_indices, augment_flag):

@@ -1,4 +1,5 @@
 batch_size = 128
+buffer_size = batch_size * 20  # buffered training tuples for the input pipeline
 logging_threshold = 10
 
 
@@ -34,6 +35,8 @@ class Temporal_Direction(Enum):
 
 
 train_iters = 2000000
-learning_rate = 10e-4
+# learning_rate = 10e-4
+# learning_rate = 5e-4
+learning_rate = 1e-4
 num_filters = 23
 

@@ -27,16 +27,19 @@ if __name__ == '__main__':
     k_dataset_path = k_base_dir + '/datasets/ucf101_downsampled'
     # k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/trainlist01-no_labels.txt'
     k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/trainlist01_filtered.txt'
+    k_input_list_filepath2 = k_base_dir + '/datasets/ucfTrainTestlist/trainlist02_filtered.txt'
+    k_input_list_filepath3 = k_base_dir + '/datasets/ucfTrainTestlist/trainlist03_filtered.txt'
+    # k_input_list_filepaths = [k_input_list_filepath, k_input_list_filepath2, k_input_list_filepath3]
+    k_input_list_filepaths = [k_input_list_filepath]
     k_activities_path = k_base_dir + '/datasets/ucfTrainTestlist/activities'
     # k_batch_size = 4
     k_supervision_mode = 'supervised'
     k_run_mode = 'train'
     k_log_root = k_base_dir + '/tf_logs'
 
-    train_set = tuple_gen.build_input(k_dataset_path, k_input_list_filepath,
-                              k_activities_path, const.batch_size,
-                              k_supervision_mode, k_run_mode, k_log_root,
-                              num_threads=16)
+    train_set = tuple_gen.build_input(k_dataset_path, k_input_list_filepaths,
+                                      k_activities_path, const.batch_size,
+                                      k_supervision_mode, k_run_mode)
 
     iterator = train_set.make_initializable_iterator()
     center_frames_op, motion_encodings_op, class_labels_op, filenames_op = iterator.get_next()

@@ -15,10 +15,10 @@ k_dataset_path = k_base_dir + '/datasets/ucf101_downsampled'
 # k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list.txt'
 # k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list2.txt'
 # k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/tmp_list3.txt'
-k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/trainlist01-no_labels.txt'
+k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/trainlist01_filtered.txt'
 # k_input_list_filepath = k_base_dir + '/datasets/ucfTrainTestlist/trainlist01_filtered.txt'
 k_activities_path = k_base_dir + '/datasets/ucfTrainTestlist/activities'
-k_batch_size = 4
+k_batch_size = 2
 k_supervision_mode = 'supervised'
 k_run_mode = 'train'
 k_log_root = k_base_dir + '/tf_logs'
@@ -28,8 +28,7 @@ k_output_dump_path = k_base_dir + '/outputs'
 def test_build_supervised_input_for_train():
     dataset = tuple_gen.build_input(k_dataset_path, k_input_list_filepath,
                                     k_activities_path, k_batch_size,
-                                    k_supervision_mode, k_run_mode, k_log_root,
-                                    num_threads=16)
+                                    k_supervision_mode, k_run_mode)
 
     iterator = dataset.make_initializable_iterator()
     next_batch = iterator.get_next()
@@ -37,7 +36,7 @@ def test_build_supervised_input_for_train():
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
     sess.run(iterator.initializer)
 
-    num_batches = 3
+    num_batches = 4
     for batch_i in range(num_batches):
         (center_frames, motion_encodings, class_labels, filenames) = sess.run(
             next_batch)
@@ -47,24 +46,25 @@ def test_build_supervised_input_for_train():
         for i in range(k_batch_size):
             print('Storing output for batch #%d, sample #%d (total: %d)' % (
                   batch_i, i, batch_i*k_batch_size + i + 1))
-            print('class_label = %d -- filename = %s' % (class_labels[i],
+            print('class_label = %d -- filename = %s' % (class_labels[i].tolist().index(1),
                                                          filenames[i]))
-            if k_batch_size > 1:
-                basename, ext = osp.splitext(osp.basename(filenames[i]))
-            else:
-                basename, ext = osp.splitext(osp.basename(filenames))
+        #     if k_batch_size > 1:
+        #         basename, ext = osp.splitext(osp.basename(filenames[i]))
+        #     else:
+        #         basename, ext = osp.splitext(osp.basename(filenames))
 
-            # save/pickle tuples
-            basename = basename.decode("utf-8")
-            out_pkl_path = osp.join(k_output_dump_path, basename + '.pkl') 
-            with open(out_pkl_path, 'wb') as f:
-                pickle.dump((center_frames, motion_encodings, class_labels,
-                             filenames), f)
+        # save/pickle tuples
+        # basename = basename.decode("utf-8")
+        basename = 'batch_%d' % batch_i
+        out_pkl_path = osp.join(k_output_dump_path, basename + '.pkl') 
+        with open(out_pkl_path, 'wb') as f:
+            pickle.dump((center_frames, motion_encodings, class_labels,
+                         filenames), f)
 
-            # visualize tuples
-            gen_utils.visualize_saved_pickle(
-                out_pkl_path, k_output_dump_path,
-                output_prefix='test_sup_train_tuples_' + basename + '_')
+        # visualize tuples
+        gen_utils.visualize_saved_pickle(
+            out_pkl_path, k_output_dump_path,
+            output_prefix='test_sup_train_tuples_' + basename + '_')
 
 
 def test_build_supervised_input_for_train_queues():
