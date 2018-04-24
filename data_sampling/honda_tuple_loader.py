@@ -50,10 +50,21 @@ class HondaTupleLoader:
         rand_rgb_channel = np.random.choice(3);
         stack_diff = np.zeros((const.frame_height, const.frame_width, const.context_channels))
 
-        if (ordered):
-            frames_order = np.arange(const.context_channels + 1)
-        else:
-            frames_order = np.random.permutation(const.context_channels + 1)
+        ## Random order
+        # if (ordered):
+        #     c = -1;
+        #     frames_order = np.arange(const.context_channels + 1)
+        # else:
+        #     c = 0;
+        #     frames_order = np.random.permutation(const.context_channels + 1)
+
+        # Swtich two frames only to make it more difficult
+        frames_order = np.arange(const.context_channels + 1)
+        c = -1;
+        if (not ordered):
+            c = np.random.choice(len(frames_order), 1, replace=False);
+            n = (c + 1) % len(frames_order)
+            frames_order[c], frames_order[n] = frames_order[n], frames_order[c]
 
         for i in range(const.context_channels):
             current_frame = imgs[frames_order[i]][y:y+int(imgs[0].shape[0] * 0.8), x:x+int(imgs[0].shape[1] * 0.8),rand_rgb_channel];
@@ -99,7 +110,44 @@ class HondaTupleLoader:
         img = imageio.imread(img_path);
         return self.augment_img(img)
 
+    def get_valid_event_balanced(self,pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations):
+
+        session_idx = pos_tuple[batch_idx];
+        session_annotations = current_sessions_annotations[session_idx]
+        num_annotations = len(session_annotations['s'])
+        current_session_possible_events = np.unique(session_annotations['G']);
+        sessions_possible_events = config.num_classes
+        event_type = int(annotation_idx[batch_idx] * sessions_possible_events)
+        while(event_type  not in current_session_possible_events):
+            event_type = (event_type  +1) % sessions_possible_events;
+
+        balanced_events =[idx for idx,evnt in enumerate(session_annotations['G']) if evnt == event_type]
+        event_idx = np.random.choice(balanced_events)
+        #event_idx = int(annotation_idx[batch_idx] * num_annotations)
+        if(event_idx >= num_annotations-1):
+            event_idx = num_annotations-2
+        invalid_event = True
+        while invalid_event:
+            try:
+                event_start = session_annotations['s'][event_idx]
+                event_end = session_annotations['s'][event_idx + 1]
+                event_goal = session_annotations['G'][event_idx]
+                center_idx = (event_start + event_end) // 2
+                if event_end - event_start > 5 and center_idx > 5 and center_idx < session_annotations['s'][-1]-6:  # ignore short (background) clips
+                    invalid_event = False;  ## found a valid event
+
+                    return event_start,event_end,event_goal;
+                else:
+                    invalid_event = True;  ## Keep looking for valid event
+                    event_idx = (event_idx - 1) % num_annotations
+            except:
+                invalid_event = True;  ## Keep looking for valid event
+                event_idx = (event_idx - 1) % num_annotations
+
+        return None;
+
     def get_valid_event(self,pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations):
+        return self.get_valid_event_balanced(pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations)
 
         session_idx = pos_tuple[batch_idx];
         session_annotations = current_sessions_annotations[session_idx]
@@ -366,6 +414,7 @@ class HondaTupleLoader:
         #         contexts[batch_idx, :, :] = context
 
         #print(sample_count)
+        #print(np.histogram(labels))
         labels_hot_vector = os_utils.hot_one_vector(labels, config.num_classes);
         return words, contexts, labels_hot_vector
 

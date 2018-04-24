@@ -85,7 +85,7 @@ if __name__ == '__main__':
         predictions = np.zeros(len(train_videos_lbls))
         num_labels = config.num_classes;
 
-        isTwoStream = True
+        isTwoStream = config.use_two_stream
         if isTwoStream:
             model = TwoStreamNet(supervised=True, train_spatial_tower=False, train_motion_tower=False,
                                  load_alex_weights=False)

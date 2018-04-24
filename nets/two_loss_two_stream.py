@@ -245,17 +245,27 @@ class TwoLossTwoStreamNet:
         ckpt_variables = ckpt_vars.keys()
         common_variables = [];
 
-        ignore_list = ['siamese/cntxt_fc6/fc6W','siamese/cntxt_fc6/fc6b','supervised_fc/fc7/kernel','supervised_fc/fc7/bias',
-                       'supervised_fc/fc8/kernel','supervised_fc/fc8/bias','supervised_fc/logits/kernel','supervised_fc/logits/bias','siamese/word_fc6/fc6b','siamese/word_fc6/fc6W',
-                       'siamese/word_fc6/fc6b/Adam_1','siamese/word_fc6/fc6b/Adam','siamese/word_fc6/fc6W/Adam_1','siamese/word_fc6/fc6W/Adam',
-                       'siamese/cntxt_fc6/fc6b/Adam_1', 'siamese/cntxt_fc6/fc6b/Adam', 'siamese/cntxt_fc6/fc6W/Adam_1',
-                       'siamese/cntxt_fc6/fc6W/Adam']
+        ignore_list = ['supervised_fc/fc7/kernel','supervised_fc/fc7/bias',
+                       'supervised_fc/fc8/kernel','supervised_fc/fc8/bias','supervised_fc/logits/kernel',
+                       'supervised_fc/logits/bias',
+
+                       # 'unsupervised_fc/fc7/kernel', 'unsupervised_fc/fc7/bias',
+                       # 'unsupervised_fc/fc8/kernel', 'unsupervised_fc/fc8/bias', 'unsupervised_fc/logits/kernel',
+                       # 'unsupervised_fc/logits/bias',
+
+                       'siamese/word_fc6/fc6b','siamese/word_fc6/fc6W','siamese/word_fc6/fc6b/Adam_1',
+                       'siamese/word_fc6/fc6b/Adam','siamese/word_fc6/fc6W/Adam_1','siamese/word_fc6/fc6W/Adam',
+
+                       'siamese/cntxt_fc6/fc6W','siamese/cntxt_fc6/fc6b','siamese/cntxt_fc6/fc6b/Adam_1',
+                       'siamese/cntxt_fc6/fc6b/Adam','siamese/cntxt_fc6/fc6W/Adam_1','siamese/cntxt_fc6/fc6W/Adam',
+                       ]
         for v_old in ckpt_variables:
             for v in all_variables:
                 if(v.name[:-2] == v_old):
                     #if(v_old == 'supervised_fc/supervised_fc_256/bias' or v_old == 'supervised_fc/supervised_fc_256/kernel' or
                     #           v_old == 'supervised_fc/supervised_fc/kernel' or v_old == 'supervised_fc/supervised_fc/bias'):
-                    if(v_old in ignore_list):
+                    found = [1 for tmp in ignore_list if v_old == tmp  or v_old.startswith(tmp)]
+                    if(len(found) > 0):
                         break;
                     else:
                         common_variables.append(v);
@@ -303,13 +313,15 @@ class TwoLossTwoStreamNet:
         words = self.rgb_2_bgr(self.input_words)
         context = self.input_context
 
-        fc6_num_units = 4096
+
 
         with tf.variable_scope("siamese",reuse=tf.AUTO_REUSE) as scope:
+            fc6_num_units = 4096
             self.layers1 = self.build_net(words, net_data,train_params=train_spatial_tower,prefix='word_',assign_weights=load_alex_weights,fc6_num_units=fc6_num_units )
             self.fcf_word_dense= self.layers1[-1]
             #fc8 = self.layers1[-1]
 
+            fc6_num_units = 128
             self.layers2 =  self.build_net(context, net_data,train_params=train_motion_tower,prefix='cntxt_',fc6_num_units=fc6_num_units )
             self.fcf_context_dense = self.layers2[-1];
 
@@ -321,7 +333,7 @@ class TwoLossTwoStreamNet:
         ## The weights of the following FC layers are still <<<<<< OPEN QUESTION >>>>>>
         supervised = True
         num_units = 4096
-        drop_out_rate = 0.85;
+        drop_out_rate = file_const.dropout_rate;
         file_const.root_logger.info('drop_out_rate '+str(drop_out_rate ))
         ## *********************** Supervised **********************##
         with tf.variable_scope("supervised_fc") as scope:
@@ -346,21 +358,21 @@ class TwoLossTwoStreamNet:
             self.supervised_correct_prediction = tf.cast(supervised_correct_prediction, tf.float32)
             self.supervised_accuracy = tf.reduce_mean(self.supervised_correct_prediction)
 
-        drop_out_rate = 0.1;
+        num_units = 128
         supervised = False
         ## *********************** Unsupervised **********************##
         with tf.variable_scope("unsupervised_fc") as scope:
-            unsupervised_fc6_dropout = tf.layers.dropout(fusion_layer, rate=drop_out_rate ,
-                                                       training=mode == tf.estimator.ModeKeys.TRAIN)
-            unsupervised_fc7 = tf.layers.dense(inputs=unsupervised_fc6_dropout , units=num_units , name='fc7', activation=tf.nn.relu,trainable=not supervised);
-            unsupervised_fc7_dropout = tf.layers.dropout(unsupervised_fc7 , rate=drop_out_rate ,
-                                                         training=mode == tf.estimator.ModeKeys.TRAIN)
-            unsupervised_fc8 = tf.layers.dense(inputs=unsupervised_fc7_dropout , units=unsupervised_num_classes , name='fc8', activation=tf.nn.relu,trainable=not supervised);
-            unsupervised_logits = tf.layers.dense(inputs=unsupervised_fc8 , units=unsupervised_num_classes, name='logits',trainable=not supervised)
+            unsupervised_fc7 = tf.layers.dense(inputs=fusion_layer, units=num_units, name='fc7', activation=tf.nn.relu,
+                                               trainable=not supervised);
+            unsupervised_fc8 = tf.layers.dense(inputs=unsupervised_fc7, units=num_units, name='fc8',
+                                               activation=tf.nn.relu, trainable=not supervised);
+            unsupervised_logits = tf.layers.dense(inputs=unsupervised_fc8, units=unsupervised_num_classes,
+                                                  name='logits', trainable=not supervised)
+
 
         with tf.variable_scope("unsupervised_loss") as scope:
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=self.unsupervised_labels, logits=unsupervised_logits , name='xentropy')
-            self.unsupervised_loss = tf.reduce_mean((1 - self.labels_balance) * cross_entropy, name='xentropy_mean')
+            self.unsupervised_loss = file_const.unsup_weight * tf.reduce_mean((1 - self.labels_balance) * cross_entropy, name='xentropy_mean')
             self.unsupervised_logits = tf.nn.softmax(unsupervised_logits )
 
 

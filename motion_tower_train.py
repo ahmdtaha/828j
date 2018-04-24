@@ -3,38 +3,34 @@ import sys
 import tensorflow as tf
 from datetime import datetime
 import data_sampling.data_args as data_args
-from nets.motion_tower import  MotionTower
+from nets.dense_motion_tower import  MotionTower
 import constants as const
-import configuration as file_const
-#from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
-from data_sampling.hmdb_tuple_loader import HMDBTupleLoader as TupleLoader
+import configuration as config
+from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
 import numpy as np
 from utils import os_utils
 
-supervised = False
-
 def gen_feed_dict(model,data_generator,subset,fix,args):
 
-    words, context, lbl = data_generator.next(subset,supervised=supervised)
+    words, context, lbl = data_generator.next(subset,supervised=True)
     feed_dict = {model.input_context:context , model.supervised_labels: lbl}
 
     return feed_dict;
 
 if __name__ == '__main__':
 
-    save_model_dir = file_const.model_save_path;
+    save_model_dir = config.model_save_path;
     os_utils.touch_dir(save_model_dir)
-
     args = dict()
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
 
     img_generator = TupleLoader(args)
-    img_generator.next(const.Subset.TRAIN,supervised=supervised)
+    img_generator.next(const.Subset.TRAIN,supervised=True)
 
     load_alex_weights = False;
 
-    motion_model = MotionTower(mode=tf.estimator.ModeKeys.TRAIN, train_motion_tower = True,supervised=supervised)
+    motion_model = MotionTower(mode=tf.estimator.ModeKeys.TRAIN, train_motion_tower = True)
     model_loss = motion_model.supervised_loss
     model_accuracy = motion_model.supervised_accuracy
 
@@ -50,18 +46,27 @@ if __name__ == '__main__':
 
     train_op = optimizer.apply_gradients(grads)
 
-    trained_variables = []
+    for v in tf.global_variables():
+        config.root_logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
+
+    config.root_logger.info('=========================================================')
     for v in tf.trainable_variables():
-        print(v.name , '\t',v.shape)
-        trained_variables.append(str(v.name) + '\t'+ str(v.shape))
-    os_utils.txt_write(os.path.join(save_model_dir,'trained_var.txt'),trained_variables)
+        print(v.name, '\t', v.shape)
+        config.root_logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
+
+    config.root_logger.info('=========================================================')
+    config.root_logger.info('Reduce Augmentation '+str(config.reduce_overfit))
+    config.root_logger.info('Two Stream Model? ' + str(config.use_two_stream))
+    config.root_logger.info('DB? ' + str(config.dataset_name))
+    config.root_logger.info('DB-Split? ' + str(config.db_split))
+
 
     sess = tf.InteractiveSession()
     now = datetime.now()
-    if(file_const.tensorbaord_file == None):
-        tb_path = file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
+    if(config.tensorbaord_file == None):
+        tb_path = config.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
     else:
-        tb_path = file_const.tensorbaord_dir + file_const.tensorbaord_file
+        tb_path = config.tensorbaord_dir + config.tensorbaord_file
 
     print(tb_path)
     if (os.path.exists(tb_path)):
@@ -81,15 +86,17 @@ if __name__ == '__main__':
 
 
     saver = tf.train.Saver()  # saves variables learned during training
-    ckpt_file = os.path.join(save_model_dir, file_const.model_save_name)
+    #sess.run(img2vec_model.assign_operations)
+    #img2vec_model.print_means(sess);
+    ckpt_file = os.path.join(save_model_dir, config.model_save_name)
     motion_model.load_weights(sess,saver,ckpt_file,save_model_dir,load_alex_weights);
 
 
 
 
-    train_loss = tf.summary.scalar('Train Loss', model_loss)
-    val_loss = tf.summary.scalar('Val Loss', model_loss)
-    model_acc_op = tf.summary.scalar('Val Accuracy', model_accuracy)
+    train_loss = tf.summary.scalar('Train_Loss', model_loss)
+    val_loss = tf.summary.scalar('Val_Loss', model_loss)
+    model_acc_op = tf.summary.scalar('Val_Accuracy', model_accuracy)
 
 
 
@@ -100,7 +107,7 @@ if __name__ == '__main__':
 
         if(step % const.logging_threshold == 0):
             print('i= ', step, ' Loss= ', model_loss_value, ', Acc= %2f' % accuracy_value,
-                  ' Epoch = %2f' % ((step * const.batch_size) / (file_const.epoch_size)));
+                  ' Epoch = %2f' % ((step * const.batch_size) / (config.epoch_size)));
             if(step != 0):
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()

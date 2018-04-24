@@ -59,12 +59,12 @@ if __name__ == '__main__':
 
 
     for v in tf.global_variables():
-        config.root_logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
+        config.root_logger.info('Global_variables ' + str(v.name) + '\t' + str(v.shape))
 
     config.root_logger.info('=========================================================')
     for v in tf.trainable_variables():
         print(v.name, '\t', v.shape)
-        config.root_logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
+        config.root_logger.info('trainable_variables ' + str(v.name) + '\t' + str(v.shape))
 
     config.root_logger.info('=========================================================')
     config.root_logger.info('Reduce Augmentation '+str(config.reduce_overfit))
@@ -121,16 +121,16 @@ if __name__ == '__main__':
     unsup_model_loss = img2vec_model.unsupervised_loss
 
 
-    sup_train_loss = tf.summary.scalar('Sup_Train_Loss', sup_model_loss )
+    sup_train_loss = tf.summary.scalar('Train_Loss', sup_model_loss )
     unsup_train_loss = tf.summary.scalar('Unsup_Train_Loss', unsup_model_loss)
 
-    sup_val_loss = tf.summary.scalar('Sup_Val_Loss', sup_model_loss )
+    sup_val_loss = tf.summary.scalar('Val_Loss', sup_model_loss )
     unsup_val_loss = tf.summary.scalar('Unsup_Val_Loss', unsup_model_loss)
 
     sup_model_accuracy = img2vec_model.supervised_accuracy
     unsup_model_accuracy = img2vec_model.unsupervised_accuracy
 
-    sup_model_acc_op = tf.summary.scalar('Sup_Val_Accuracy', sup_model_accuracy)
+    sup_model_acc_op = tf.summary.scalar('Val_Accuracy', sup_model_accuracy)
     unsup_model_acc_op = tf.summary.scalar('Unsup_Val_Accuracy', unsup_model_accuracy)
 
     config.root_logger.info('Training started')

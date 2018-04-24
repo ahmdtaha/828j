@@ -422,7 +422,7 @@ class HMDBTupleLoader:
         # res = [None] * queue_size
         for batch_idx in np.arange(0,const.batch_size):
 
-            word, context, goal = self.load_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx], batch_idx,
+            word, context, goal,_ = self.load_pos_tuple(pos_tuple[batch_idx], frame_sampling_idx[batch_idx], batch_idx,
                                                    current_sessions, current_sessions_lbl, current_sessions_len,
                                                    ordered=True);
             labels[batch_idx] = goal;
@@ -476,8 +476,8 @@ class HMDBTupleLoader:
         if supervised :
             return self.supervised_next(subset)
         else:
-            #return self.unsupervised_next(subset)
-            return self.temporal_unsupervised_next(subset)
+            return self.unsupervised_next(subset)
+            #return self.temporal_unsupervised_next(subset)
 
 def vis_img(img,label,prefix,suffix):
     cv2.imwrite(config.dump_path + prefix + '_' + str(label) + suffix + '.png',img)
@@ -510,12 +510,12 @@ if __name__ == '__main__':
     vdz_dataset = HMDBTupleLoader(args);
     words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=False)
     print(labels )
-    for batch_idx in range(contexts.shape[0]):
-        lbl = labels[batch_idx]
-        if(np.prod(lbl.shape) > 1):
-            lbl = np.argmax(labels[batch_idx]);
-        vis_img(words[batch_idx,:],lbl ,'p_'+str(batch_idx),'_img')
-        vis_sod(contexts[batch_idx,:],lbl ,'p_'+str(batch_idx),'_sod')
+    # for batch_idx in range(contexts.shape[0]):
+    #     lbl = labels[batch_idx]
+    #     if(np.prod(lbl.shape) > 1):
+    #         lbl = np.argmax(labels[batch_idx]);
+    #     vis_img(words[batch_idx,:],lbl ,'p_'+str(batch_idx),'_img')
+    #     vis_sod(contexts[batch_idx,:],lbl ,'p_'+str(batch_idx),'_sod')
     #print(np.unique(np.argmax(labels,axis=1)))
     # print(labels)
     # for batch_idx in range(contexts.shape[0]):

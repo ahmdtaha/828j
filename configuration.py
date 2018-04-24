@@ -4,11 +4,11 @@ import logging
 
 
 epoch_size = 500000
-dataset_name = 'HMDB'
+dataset_name = 'honda'
 db_split = 1
 use_two_stream  = True
 
-dropout_rate = 0.2;
+dropout_rate = 0.5;
 unsup_weight = 100;
 
 dataset_dir = dataset_name
@@ -27,8 +27,8 @@ elif dataset_name == 'honda':
     db_path = '/Users/ahmedtaha/Documents/dataset/honda_100h'
     db_tuple_loader = 'data_sampling.honda_tuple_loader.HondaTupleLoader'
 
-#unsupervised_num_classes = 4
-unsupervised_num_classes = 7
+unsupervised_num_classes = 4
+#unsupervised_num_classes = 7
 
 tensorbaord_dir = './tb/'
 
@@ -37,7 +37,7 @@ def touch_dir(path):
         os.makedirs(path)
 
 
-model_save_path = './model/cvprws/tmp'
+model_save_path = './model/comb_unsup_hmdb51_sf'
 touch_dir(model_save_path)
 model_weights_filepath = '/Users/ahmedtaha/Documents/Models/bvlc_alexnet.npy'
 model_save_name = "patch_model.ckpt"

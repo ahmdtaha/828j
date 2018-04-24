@@ -26,13 +26,13 @@ from utils.metric import compute_average_precision_classification
 
 
 def load_subset(subset):
-    with open(config.honda_session_path + '/' + subset + '_session.txt', 'r') as fin:
+    with open(config.db_path + '/' + subset + '_session.txt', 'r') as fin:
         sessions = fin.read().strip().split('\n')
     num_sessions = len(sessions)
     sessions_annotations = [None] * num_sessions
 
     for vdz in range(num_sessions):
-        vdz_annotation_path = os.path.join(config.honda_session_path, 'labels/' + sessions[vdz] + '_goal.pkl')
+        vdz_annotation_path = os.path.join(config.db_path, 'labels/' + sessions[vdz] + '_goal.pkl')
         sessions_annotations[vdz] = os_utils.pkl_read(vdz_annotation_path)
 
     return sessions, num_sessions, sessions_annotations
@@ -73,9 +73,9 @@ def get_context(center_idx,session):
     imgs = np.zeros((const.context_channels+1,const.frame_height,const.frame_width))
     index = 0;
     for idx in [-5,-3,-1,1,3,5]:
-        img_path = os.path.join(config.honda_session_path, 'frames', session, 'frame_%04d.jpg' % (center_idx+idx));
+        img_path = os.path.join(config.db_path, 'frames', session, 'frame_%04d.jpg' % (center_idx+idx));
         if (not os.path.exists(img_path)):
-            img_path = os.path.join(config.honda_session_path, 'frames', session,
+            img_path = os.path.join(config.db_path, 'frames', session,
                                     'frame_%05d.jpg' % (center_idx + idx));
         img=read_image_from_path(img_path)
         imgs[index,:,:] = img;
@@ -85,9 +85,9 @@ def get_context(center_idx,session):
 
 def get_img(frame_idx,session):
 
-    img_path = os.path.join(config.honda_session_path,'frames',session,'frame_%04d.jpg' % frame_idx);
+    img_path = os.path.join(config.db_path,'frames',session,'frame_%04d.jpg' % frame_idx);
     if(not os.path.exists(img_path )):
-        img_path = os.path.join(config.honda_session_path, 'frames', session, 'frame_%05d.jpg' % frame_idx);
+        img_path = os.path.join(config.db_path, 'frames', session, 'frame_%05d.jpg' % frame_idx);
     # img = imageio.imread(img_path);
     # img = cv2.resize(img , (const.frame_height, const.frame_width))
     img = read_rgb_img(img_path);
@@ -211,7 +211,7 @@ def eval_by_event():
 
     return cnf_matrix,ground_truth,prediction
 if __name__ == '__main__':
-    isTwoStream = False
+    isTwoStream = config.use_two_stream
     img_caches = LRUCache(150);
     sod_caches = LRUCache(150);
     if isTwoStream:
