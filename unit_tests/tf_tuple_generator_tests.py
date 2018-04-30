@@ -67,6 +67,48 @@ def test_build_supervised_input_for_train():
             output_prefix='test_sup_train_tuples_' + basename + '_')
 
 
+def test_build_unsupervised_input_for_train():
+    dataset = tuple_gen.build_input(k_dataset_path, k_input_list_filepath,
+                                    k_activities_path, k_batch_size,
+                                    'unsupervised', k_run_mode)
+
+    iterator = dataset.make_initializable_iterator()
+    next_batch = iterator.get_next()
+
+    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+    sess.run(iterator.initializer)
+
+    num_batches = 4
+    for batch_i in range(num_batches):
+        (center_frames, motion_encodings, class_labels, filenames) = sess.run(
+            next_batch)
+        print('Done with batch %d' % (batch_i + 1))
+
+        print('Storing sample output in ' + k_output_dump_path)
+        for i in range(k_batch_size):
+            print('Storing output for batch #%d, sample #%d (total: %d)' % (
+                  batch_i, i, batch_i*k_batch_size + i + 1))
+            print('class_label = %d -- filename = %s' % (class_labels[i].tolist().index(1),
+                                                         filenames[i]))
+        #     if k_batch_size > 1:
+        #         basename, ext = osp.splitext(osp.basename(filenames[i]))
+        #     else:
+        #         basename, ext = osp.splitext(osp.basename(filenames))
+
+        # save/pickle tuples
+        # basename = basename.decode("utf-8")
+        basename = 'batch_%d' % batch_i
+        out_pkl_path = osp.join(k_output_dump_path, basename + '.pkl') 
+        with open(out_pkl_path, 'wb') as f:
+            pickle.dump((center_frames, motion_encodings, class_labels,
+                         filenames), f)
+
+        # visualize tuples
+        gen_utils.visualize_saved_pickle(
+            out_pkl_path, k_output_dump_path,
+            output_prefix='test_sup_train_tuples_' + basename + '_')
+
+
 def test_build_supervised_input_for_train_queues():
     center_frames_op, motion_encoding_op, class_label_op, filenames_op = \
         tuple_gen.build_input(k_dataset_path, k_input_list_filepath,
@@ -132,5 +174,6 @@ def test_split_into_train_tuples():
 
 
 if __name__ == '__main__':
-    test_build_supervised_input_for_train()
+    # test_build_supervised_input_for_train()
+    test_build_unsupervised_input_for_train()
     # test_split_into_train_tuples()
