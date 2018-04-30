@@ -17,7 +17,7 @@ import tensorflow as tf
 import multiprocessing as mp
 from multiprocessing import Pool,TimeoutError
 import pandas as pd
-from datetime import datetime
+from utils.logger import root_logger as logger
 
 val_dir = 'val'
 
@@ -53,33 +53,35 @@ class UCFTupleLoader:
             print('Something is wrong with dataset, double check the config')
             sys.exit(1)
 
-        total_train_videos, total_train_videos_lbls, total_train_videos_len = self.load_subset('train');
+        self.train_videos, self.train_videos_lbls, self.train_videos_len = self.load_subset('train');
+        if(config.db_split ==1):
+            self.val_videos, self.val_videos_lbls, self.val_videos_len = self.load_subset('test');
+        else:
+            print('Test split#1 can only be used as validation')
+            sys.exit(1)
 
-        ## TODO: bad quick workaround to fix train and val permutation
-        np.random.seed(828);
+        # total_train_videos, total_train_videos_lbls, total_train_videos_len = self.load_subset('train');
+        # ## TODO: bad quick workaround to fix train and val permutation
+        # np.random.seed(828);
+        # num_files = len(total_train_videos)
+        # train_set_size = int(num_files  * 0.8)
+        # samples_permutated = np.random.permutation(num_files);
+        # train_idx = samples_permutated[0:train_set_size]
+        # val_idx = samples_permutated[train_set_size:]
+        # # [1466 2151  270 ...,  361 2272 2411]
+        # print(train_idx )
+        # self.train_videos = [total_train_videos[i] for i in train_idx]
+        # self.train_videos_lbls = [total_train_videos_lbls[i] for i in train_idx]
+        # self.train_videos_len = [total_train_videos_len[i] for i in train_idx]
+        # self.val_videos = [total_train_videos[i] for i in val_idx]
+        # self.val_videos_lbls = [total_train_videos_lbls[i] for i in val_idx]
+        # self.val_videos_len = [total_train_videos_len[i] for i in val_idx]
+        # print(datetime.now())
+        # import time
+        # np.random.seed(int(time.time()))
 
-        num_files = len(total_train_videos)
-        train_set_size = int(num_files  * 0.8)
-        samples_permutated = np.random.permutation(num_files);
-        train_idx = samples_permutated[0:train_set_size]
-        val_idx = samples_permutated[train_set_size:]
-        # [1466 2151  270 ...,  361 2272 2411]
-        print(train_idx )
-        self.train_videos = [total_train_videos[i] for i in train_idx]
-        self.train_videos_lbls = [total_train_videos_lbls[i] for i in train_idx]
-        self.train_videos_len = [total_train_videos_len[i] for i in train_idx]
-        self.val_videos = [total_train_videos[i] for i in val_idx]
-        self.val_videos_lbls = [total_train_videos_lbls[i] for i in val_idx]
-        self.val_videos_len = [total_train_videos_len[i] for i in val_idx]
-
-
-
-        print(datetime.now())
-        import time
-
-        np.random.seed(int(time.time()))
         print('Train ',len(self.train_videos_lbls), ' Val ',len(self.val_videos_lbls))
-        config.root_logger.info('Train '+str(len(self.train_videos_lbls))+ ' Val '+ str(len(self.val_videos_lbls)))
+        logger.info('Train '+str(len(self.train_videos_lbls))+ ' Val '+ str(len(self.val_videos_lbls)))
 
     def imgs2sod(self,imgs,ordered=True):
 
@@ -90,10 +92,21 @@ class UCFTupleLoader:
         rand_rgb_channel = np.random.choice(3);
         stack_diff = np.zeros((const.frame_height, const.frame_width, const.context_channels))
 
-        if (ordered):
-            frames_order = np.arange(const.context_channels + 1)
-        else:
-            frames_order = np.random.permutation(const.context_channels + 1)
+        ## Random order
+        # if (ordered):
+        #     c = -1;
+        #     frames_order = np.arange(const.context_channels + 1)
+        # else:
+        #     c = 0;
+        #     frames_order = np.random.permutation(const.context_channels + 1)
+
+        # Swtich two frames only to make it more difficult
+        frames_order = np.arange(const.context_channels + 1)
+        c = -1;
+        if (not ordered):
+            c = np.random.choice(len(frames_order), 1, replace=False);
+            n = (c + 1) % len(frames_order)
+            frames_order[c], frames_order[n] = frames_order[n], frames_order[c]
 
         for i in range(const.context_channels):
             current_frame = imgs[frames_order[i]][y:y+int(imgs[0].shape[0] * 0.8), x:x+int(imgs[0].shape[1] * 0.8),rand_rgb_channel];
@@ -456,7 +469,7 @@ if __name__ == '__main__':
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
     vdz_dataset = UCFTupleLoader(args);
-    words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
+    words, contexts, labels = vdz_dataset.next(const.Subset.VAL, supervised=True)
     print(np.unique(np.argmax(labels,axis=1)))
     #print(labels)
     for batch_idx in range(contexts.shape[0]):

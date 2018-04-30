@@ -191,10 +191,11 @@ class MotionTower:
     def __init__(self, mode = tf.estimator.ModeKeys.TRAIN,train_motion_tower=True,supervised=True):
         net_data = np.load(open(file_const.model_weights_filepath, "rb"), encoding="latin1").item()
         batch_size = None
+        print(const.context_channels*file_const.sod_span)
         self.input_context = tf.placeholder(tf.float32,
                                             shape=(
                                                 batch_size, const.frame_height, const.frame_width,
-                                                const.context_channels),
+                                                const.context_channels*file_const.sod_span),
                                             name='context_input')
 
         if supervised:
@@ -208,9 +209,13 @@ class MotionTower:
         fcn_num_units = 4096
 
         with tf.variable_scope("siamese", reuse=tf.AUTO_REUSE) as scope:
-            self.layers2 = self.build_net(context, net_data, train_params=train_motion_tower, prefix='cntxt_',
-                                          fc6_num_units=fcn_num_units)
-            self.fc6_context_dense = self.layers2[-1];
+            for i in range(file_const.sod_span):
+                self.layers2 = self.build_net(context[:,:,:,i*const.context_channels:(i+1)*const.context_channels]
+                                              , net_data, train_params=train_motion_tower, prefix='cntxt_',fc6_num_units=fcn_num_units)
+                if(i == 0):
+                    self.fc6_context_dense = self.layers2[-1];
+                else:
+                    self.fc6_context_dense += self.layers2[-1];
 
 
         ## *********************** Supervised **********************##

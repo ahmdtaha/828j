@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import multiprocessing as mp
 from multiprocessing import Pool,TimeoutError
+from utils.logger import root_logger as logger
 
 val_dir = 'val'
 
@@ -35,11 +36,11 @@ class HondaTupleLoader:
         return sessions,num_sessions,sessions_annotations
     def __init__(self, args):
         self.train_sessions,self.num_train_sessions,self.train_sessions_annotations = self.load_subset( 'train');
-        self.val_sessions, self.num_val_sessions, self.val_sessions_annotations = self.load_subset('val');
+        self.val_sessions, self.num_val_sessions, self.val_sessions_annotations = self.load_subset(val_dir);
 
         print('Train ',self.num_train_sessions, ' Val ',self.num_val_sessions)
 
-        config.root_logger.info('Train ' + str(self.num_train_sessions) + ' Val ' + str(self.num_val_sessions))
+        logger.info('Train ' + str(self.num_train_sessions) + ' Val ' + str(self.num_val_sessions))
 
     def imgs2sod(self,imgs,ordered=True):
 
@@ -69,22 +70,33 @@ class HondaTupleLoader:
         for i in range(const.context_channels):
             current_frame = imgs[frames_order[i]][y:y+int(imgs[0].shape[0] * 0.8), x:x+int(imgs[0].shape[1] * 0.8),rand_rgb_channel];
             next_frame = imgs[frames_order[i+1]][y:y+int(imgs[0].shape[0] * 0.8), x:x+int(imgs[0].shape[1] * 0.8), rand_rgb_channel];
-
             current_frame = cv2.resize(current_frame, (const.frame_height, const.frame_width))
             next_frame = cv2.resize(next_frame, (const.frame_height, const.frame_width))
 
             stack_diff[:,:,i] = current_frame.astype(np.int32) - next_frame.astype(np.int32);
 
         return stack_diff;
-    def get_context(self,center_idx,session,ordered=True):
-        imgs = []
-        for idx in [-5,-3,-1,1,3,5]:
-            img_path = os.path.join(config.db_path, 'frames', session, 'frame_%04d.jpg' % (center_idx+idx));
-            if (not os.path.exists(img_path)):
-                img_path = os.path.join(config.db_path, 'frames', session,
-                                        'frame_%05d.jpg' % (center_idx + idx));
+
+    def read_frame(self,idx,session):
+        img_path = os.path.join(config.db_path, 'frames', session, 'frame_%04d.jpg' % (idx));
+        # print((center_idx+idx)," ",end="")
+        if (not os.path.exists(img_path)):
+            img_path = os.path.join(config.db_path, 'frames', session,
+                                    'frame_%05d.jpg' % (idx));
+
+        try:
             img = imageio.imread(img_path);
+        except:
+            img = np.zeros((const.frame_height, const.frame_width,const.frame_channels))
+        return img
+
+    def get_context(self,center_idx,session,ordered=True,n=1):
+        imgs = []
+        # print('Context ')
+        for idx in [-5,-3,-1,1,3,5]:
+            img = self.read_frame(center_idx + idx,session)
             imgs.append(img)
+        # print("")
         return self.imgs2sod(imgs,ordered)
 
 
@@ -103,11 +115,7 @@ class HondaTupleLoader:
         return im
 
     def get_img(self,frame_idx,session):
-
-        img_path = os.path.join(config.db_path,'frames',session,'frame_%04d.jpg' % frame_idx);
-        if(not os.path.exists(img_path )):
-            img_path = os.path.join(config.db_path, 'frames', session, 'frame_%05d.jpg' % frame_idx);
-        img = imageio.imread(img_path);
+        img = self.read_frame(frame_idx, session)
         return self.augment_img(img)
 
     def get_valid_event_balanced(self,pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations):
@@ -228,13 +236,25 @@ class HondaTupleLoader:
         return word,context
 
 
-    def load_pos_tuple(self, pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations,ordered=True):
+
+
+    def load_pos_tuple(self, pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations,ordered=True,n=1):
         session = current_sessions[pos_tuple[batch_idx]]
         event_start, event_end, event_goal = self.get_valid_event(pos_tuple, annotation_idx, batch_idx, current_sessions, current_sessions_annotations)
         center_idx = self.sample_valid_center_frame(event_start , event_end) #(event_start + event_end) //2
-        #print('Center ',center_idx )
-        word = self.get_img(center_idx, session)
-        context = self.get_context(center_idx, session, ordered)
+        center_idxs = [center_idx]*n
+        half_n = n//2
+        for i in range(half_n):
+            center_idxs[i] = center_idx - 11 * (half_n-i)
+            center_idxs[-i-1] = center_idx + 11 * (half_n-i)
+        # print(center_idxs)
+        word = np.zeros((const.frame_height, const.frame_width, const.frame_channels * n))
+        context = np.zeros((const.frame_height, const.frame_width, const.context_channels * n))
+
+        for i in range(n):
+            word[:,:,i*const.frame_channels :(i+1)*const.frame_channels ] = self.get_img(center_idxs[i], session)
+            context[:,:,i*const.context_channels:(i+1)*const.context_channels] = self.get_context(center_idxs[i], session, ordered)
+
         return word,context,event_goal;
 
 
@@ -351,8 +371,7 @@ class HondaTupleLoader:
         pos_tuple = np.random.randint(low=0, high=subset_size, size=(const.batch_size));
         annotation_idx = np.random.rand(const.batch_size);
 
-        words = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.frame_channels))
-        contexts = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.context_channels))
+
 
         labels = np.zeros((const.batch_size), dtype=np.int32)
 
@@ -366,13 +385,17 @@ class HondaTupleLoader:
         # queue_size = 5
         # pool = Pool(processes=queue_size )
         # res = [None] * queue_size
+        n = config.sod_span;
+        words = np.zeros((const.batch_size, const.frame_height, const.frame_width, const.frame_channels * n))
+        contexts = np.zeros((const.batch_size,const.frame_height, const.frame_width, const.context_channels * n))
         for batch_idx in np.arange(0,const.batch_size):
 
+
             word, context, goal = self.load_pos_tuple(pos_tuple, annotation_idx, batch_idx, current_sessions,
-                                                  current_sessions_annotations, ordered=True);
+                                                      current_sessions_annotations, ordered=True,n=n);
             labels[batch_idx] = goal;
-            words[batch_idx, :, :] = word
-            contexts[batch_idx, :, :] = context
+            words[batch_idx, :, :,:] = word
+            contexts[batch_idx, :, :,:] = context
 
             # sample_count[labels[batch_idx]] += 1
             # print(batch_idx , 'Goal ',goal,honda_lbls.honda_num2labels[goal])
@@ -429,7 +452,7 @@ def vis_img(img,label,prefix,suffix):
 
 def vis_sod(stack_diff,label,prefix,suffix):
     images = []
-    for j in range(5):
+    for j in range(stack_diff.shape[2]):
         im = stack_diff[:, :, j];
         im = ((im - np.amin(im)) / np.amax(im) - np.amin(im)) * 255
         im = im.astype(np.uint8)
@@ -449,21 +472,23 @@ if __name__ == '__main__':
     args[data_args.gen_nearby_frame] = False;
     args[data_args.data_augmentation_enabled] = False
     vdz_dataset = HondaTupleLoader(args);
-    # import time
-    # for seed in range(1):
-    #     np.random.seed(seed)
-    #     print('Current using seed ',seed)
-    #
-    #     for i in range(10):
-    #         start_time = time.time()
-    #         words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
-    #         elapsed_time = time.time() - start_time
-    #         print('elapsed_time :', elapsed_time)
-    words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
-    for batch_idx in range(words.shape[0]):
-        vis_img(words[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_img')
-        vis_sod(contexts[batch_idx,:],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_sod')
-    sys.exit(1)
+    import time
+    for seed in range(100):
+        np.random.seed(seed)
+        print('Current using seed ',seed)
+
+        for i in range(1):
+            start_time = time.time()
+            words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
+            elapsed_time = time.time() - start_time
+            print('elapsed_time :', elapsed_time)
+
+    #words, contexts, labels = vdz_dataset.next(const.Subset.TRAIN, supervised=True)
+    # for batch_idx in range(words.shape[0]):
+    #     vis_img(words[batch_idx,:,:,config.sod_span//2:config.sod_span//2+3],np.argmax(labels[batch_idx]),'p_'+str(batch_idx),'_img')
+    #     vis_sod(words[batch_idx, :], np.argmax(labels[batch_idx]), 'i_' + str(batch_idx), '_frms')
+    #     vis_sod(contexts[batch_idx,:],np.argmax(labels[batch_idx]),'i_'+str(batch_idx),'_sod')
+    # sys.exit(1)
     #
     #
     # start_time = time.time()

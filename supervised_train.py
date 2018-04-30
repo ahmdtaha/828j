@@ -10,6 +10,8 @@ import configuration as config
 import numpy as np
 from pydoc import locate
 from utils import os_utils
+from utils.logger import root_logger as logger
+
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
     words, context, lbl = data_generator.next(subset, supervised=True)
@@ -58,20 +60,16 @@ if __name__ == '__main__':
 
     train_op = optimizer.apply_gradients(grads)
 
-
+    logger.info('=========================================================')
     for v in tf.global_variables():
-        config.root_logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
+        logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
 
-    config.root_logger.info('=========================================================')
+    logger.info('=========================================================')
     for v in tf.trainable_variables():
         print(v.name, '\t', v.shape)
-        config.root_logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
+        logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
 
-    config.root_logger.info('=========================================================')
-    config.root_logger.info('Reduce Augmentation '+str(config.reduce_overfit))
-    config.root_logger.info('Two Stream Model? ' + str(config.use_two_stream))
-    config.root_logger.info('DB? ' + str(config.dataset_name))
-    config.root_logger.info('DB-Split? ' + str(config.db_split))
+
 
     sess = tf.InteractiveSession()
     now = datetime.now()
@@ -88,10 +86,10 @@ if __name__ == '__main__':
         for e in tb_iter:
             last_step = e.step;
         print('Continue on previous TB file ', tb_path, ' with starting step', last_step);
-        config.root_logger.info('Continue on previous TB file '+ tb_path+ ' with starting step'+ str(last_step))
+        logger.info('Continue on previous TB file '+ tb_path+ ' with starting step'+ str(last_step))
     else:
         print('New TB file *********** ', tb_path);
-        config.root_logger.info('New TB file *********** '+ tb_path)
+        logger.info('New TB file *********** '+ tb_path)
         last_step = 0;
 
 
@@ -107,15 +105,15 @@ if __name__ == '__main__':
             # Try to restore everything if possible
             saver.restore(sess, ckpt_file)
             print('Model Loaded Normally');
-            config.root_logger.info('Model Loaded Normally')
+            logger.info('Model Loaded Normally')
         except:
             ## If not, load as much as possible
             img2vec_model.load_pretrained(sess, ckpt_file);
             print('Pretrained Weights loaded, while some layers are randomized')
-            config.root_logger.info('Pretrained Weights loaded, while some layers are randomized')
+            logger.info('Pretrained Weights loaded, while some layers are randomized')
     elif load_alex_weights:
         print('Loading img2vec_model.assign_operations:',len(img2vec_model.assign_operations));
-        config.root_logger.info('Loading img2vec_model.assign_operations:'+ str(len(img2vec_model.assign_operations)))
+        logger.info('Loading img2vec_model.assign_operations:'+ str(len(img2vec_model.assign_operations)))
         sess.run(img2vec_model.assign_operations);
 
 
@@ -123,7 +121,7 @@ if __name__ == '__main__':
     val_loss = tf.summary.scalar('Val_Loss', model_loss)
     model_acc_op = tf.summary.scalar('Val_Accuracy', model_accuracy)
 
-    config.root_logger.info('Training started')
+    logger.info('Training started')
     for step in range(last_step,const.train_iters):
 
         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
@@ -136,7 +134,7 @@ if __name__ == '__main__':
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
 
-                feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
+
                 train_loss_op,_= sess.run([train_loss,train_op],feed_dict=feed_dict)
 
                 feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, None, args);
@@ -153,6 +151,9 @@ if __name__ == '__main__':
 
                 if(step % 100 == 0):
                     saver.save(sess, ckpt_file)
+                    if (step % config.checkpoint_frequency == 0):
+                        ckpt = os.path.join(save_model_dir,str(step), config.model_save_name)
+                        saver.save(sess, ckpt)
 
 
 

@@ -3,6 +3,7 @@ import numpy as np
 import constants as const
 import configuration as file_const
 from tensorflow.python import pywrap_tensorflow
+from utils.logger import root_logger as logger
 
 class TwoLossTwoStreamNet:
     def conv(self,input, kernel, biases, k_h, k_w, c_o, s_h, s_w, padding="VALID", group=1):
@@ -249,9 +250,9 @@ class TwoLossTwoStreamNet:
                        'supervised_fc/fc8/kernel','supervised_fc/fc8/bias','supervised_fc/logits/kernel',
                        'supervised_fc/logits/bias',
 
-                       # 'unsupervised_fc/fc7/kernel', 'unsupervised_fc/fc7/bias',
-                       # 'unsupervised_fc/fc8/kernel', 'unsupervised_fc/fc8/bias', 'unsupervised_fc/logits/kernel',
-                       # 'unsupervised_fc/logits/bias',
+                       'unsupervised_fc/fc7/kernel', 'unsupervised_fc/fc7/bias',
+                       'unsupervised_fc/fc8/kernel', 'unsupervised_fc/fc8/bias', 'unsupervised_fc/logits/kernel',
+                       'unsupervised_fc/logits/bias',
 
                        'siamese/word_fc6/fc6b','siamese/word_fc6/fc6W','siamese/word_fc6/fc6b/Adam_1',
                        'siamese/word_fc6/fc6b/Adam','siamese/word_fc6/fc6W/Adam_1','siamese/word_fc6/fc6W/Adam',
@@ -313,15 +314,14 @@ class TwoLossTwoStreamNet:
         words = self.rgb_2_bgr(self.input_words)
         context = self.input_context
 
-
-
+        fc6_num_units = 4096
         with tf.variable_scope("siamese",reuse=tf.AUTO_REUSE) as scope:
-            fc6_num_units = 4096
+
             self.layers1 = self.build_net(words, net_data,train_params=train_spatial_tower,prefix='word_',assign_weights=load_alex_weights,fc6_num_units=fc6_num_units )
             self.fcf_word_dense= self.layers1[-1]
             #fc8 = self.layers1[-1]
 
-            fc6_num_units = 128
+
             self.layers2 =  self.build_net(context, net_data,train_params=train_motion_tower,prefix='cntxt_',fc6_num_units=fc6_num_units )
             self.fcf_context_dense = self.layers2[-1];
 
@@ -334,7 +334,7 @@ class TwoLossTwoStreamNet:
         supervised = True
         num_units = 4096
         drop_out_rate = file_const.dropout_rate;
-        file_const.root_logger.info('drop_out_rate '+str(drop_out_rate ))
+        logger.info('drop_out_rate '+str(drop_out_rate ))
         ## *********************** Supervised **********************##
         with tf.variable_scope("supervised_fc") as scope:
             supervised_fc6_dropout = tf.layers.dropout(fusion_layer, rate=drop_out_rate ,

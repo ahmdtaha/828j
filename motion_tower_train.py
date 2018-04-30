@@ -9,10 +9,12 @@ import configuration as config
 from data_sampling.honda_tuple_loader import HondaTupleLoader as TupleLoader
 import numpy as np
 from utils import os_utils
+from utils.logger import root_logger as logger
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
 
     words, context, lbl = data_generator.next(subset,supervised=True)
+    print(context.shape)
     feed_dict = {model.input_context:context , model.supervised_labels: lbl}
 
     return feed_dict;
@@ -46,20 +48,14 @@ if __name__ == '__main__':
 
     train_op = optimizer.apply_gradients(grads)
 
+    logger.info('=========================================================')
     for v in tf.global_variables():
-        config.root_logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
+        logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
 
-    config.root_logger.info('=========================================================')
+    logger.info('=========================================================')
     for v in tf.trainable_variables():
         print(v.name, '\t', v.shape)
-        config.root_logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
-
-    config.root_logger.info('=========================================================')
-    config.root_logger.info('Reduce Augmentation '+str(config.reduce_overfit))
-    config.root_logger.info('Two Stream Model? ' + str(config.use_two_stream))
-    config.root_logger.info('DB? ' + str(config.dataset_name))
-    config.root_logger.info('DB-Split? ' + str(config.db_split))
-
+        logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
 
     sess = tf.InteractiveSession()
     now = datetime.now()
@@ -130,6 +126,7 @@ if __name__ == '__main__':
 
                 if(step % 100 == 0):
                     saver.save(sess, ckpt_file)
+
 
 
 

@@ -10,6 +10,7 @@ import configuration as config
 import numpy as np
 from pydoc import locate
 from utils import os_utils
+from utils.logger import root_logger as logger
 
 def gen_feed_dict(model,data_generator,subset,supervised=True):
     words, context, lbl = data_generator.next(subset, supervised=supervised)
@@ -59,18 +60,13 @@ if __name__ == '__main__':
 
 
     for v in tf.global_variables():
-        config.root_logger.info('Global_variables ' + str(v.name) + '\t' + str(v.shape))
+        logger.info('Global_variables ' + str(v.name) + '\t' + str(v.shape))
 
-    config.root_logger.info('=========================================================')
+    logger.info('=========================================================')
     for v in tf.trainable_variables():
         print(v.name, '\t', v.shape)
-        config.root_logger.info('trainable_variables ' + str(v.name) + '\t' + str(v.shape))
+        logger.info('trainable_variables ' + str(v.name) + '\t' + str(v.shape))
 
-    config.root_logger.info('=========================================================')
-    config.root_logger.info('Reduce Augmentation '+str(config.reduce_overfit))
-    config.root_logger.info('Two Stream Model? ' + str(config.use_two_stream))
-    config.root_logger.info('DB? ' + str(config.dataset_name))
-    config.root_logger.info('DB-Split? ' + str(config.db_split))
 
     sess = tf.InteractiveSession()
     now = datetime.now()
@@ -87,10 +83,10 @@ if __name__ == '__main__':
         for e in tb_iter:
             last_step = e.step;
         print('Continue on previous TB file ', tb_path, ' with starting step', last_step);
-        config.root_logger.info('Continue on previous TB file '+ tb_path+ ' with starting step'+ str(last_step))
+        logger.info('Continue on previous TB file '+ tb_path+ ' with starting step'+ str(last_step))
     else:
         print('New TB file *********** ', tb_path);
-        config.root_logger.info('New TB file *********** '+ tb_path)
+        logger.info('New TB file *********** '+ tb_path)
         last_step = 0;
 
 
@@ -106,15 +102,15 @@ if __name__ == '__main__':
             # Try to restore everything if possible
             saver.restore(sess, ckpt_file)
             print('Model Loaded Normally');
-            config.root_logger.info('Model Loaded Normally')
+            logger.info('Model Loaded Normally')
         except:
             ## If not, load as much as possible
             img2vec_model.load_pretrained(sess, ckpt_file);
             print('Pretrained Weights loaded, while some layers are randomized')
-            config.root_logger.info('Pretrained Weights loaded, while some layers are randomized')
+            logger.info('Pretrained Weights loaded, while some layers are randomized')
     elif load_alex_weights:
         print('Loading img2vec_model.assign_operations:',len(img2vec_model.assign_operations));
-        config.root_logger.info('Loading img2vec_model.assign_operations:'+ str(len(img2vec_model.assign_operations)))
+        logger.info('Loading img2vec_model.assign_operations:'+ str(len(img2vec_model.assign_operations)))
         sess.run(img2vec_model.assign_operations);
 
     sup_model_loss = img2vec_model.supervised_loss
@@ -133,21 +129,17 @@ if __name__ == '__main__':
     sup_model_acc_op = tf.summary.scalar('Val_Accuracy', sup_model_accuracy)
     unsup_model_acc_op = tf.summary.scalar('Unsup_Val_Accuracy', unsup_model_accuracy)
 
-    config.root_logger.info('Training started')
+    logger.info('Training started')
     for step in range(last_step,const.train_iters):
 
         ## SUP
         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, supervised=True);
         model_loss_value, sup_model_loss_value,sup_accuracy_value, _ = sess.run([model_loss,sup_model_loss ,img2vec_model.supervised_accuracy,train_op], feed_dict)
-        config.root_logger.info('Sup ** Model Loss'+str(model_loss_value)+' Loss '
-                                +str(sup_model_loss_value)+' Acc '+ str(sup_accuracy_value))
         #print('Sup ** Model Loss',model_loss_value,' Loss ',sup_model_loss_value,' Acc ',sup_accuracy_value)
         ## UNSUP
         feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, supervised=False);
         model_loss_value,unsup_model_loss_value, unsup_accuracy_value, _ = sess.run([model_loss, unsup_model_loss, img2vec_model.unsupervised_accuracy, train_op], feed_dict)
         #print('UnSup ** Model Loss',model_loss_value,' Loss ', unsup_model_loss_value, ' Acc ', unsup_accuracy_value)
-        config.root_logger.info('Sup ** Model Loss'+ str(model_loss_value) + ' Loss '
-                                + str(sup_model_loss_value)+ ' Acc '+ str(sup_accuracy_value))
 
         if(step % const.logging_threshold == 0):
             print('i= ', step, 'Sup Loss= ', sup_model_loss_value,'Unsup Loss= ', unsup_model_loss_value,
@@ -184,6 +176,9 @@ if __name__ == '__main__':
 
                 if(step % 100 == 0):
                     saver.save(sess, ckpt_file)
+                    if (step % config.checkpoint_frequency == 0):
+                        ckpt = os.path.join(save_model_dir,str(step), config.model_save_name)
+                        saver.save(sess, ckpt)
 
 
 

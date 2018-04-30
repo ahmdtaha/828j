@@ -8,6 +8,7 @@ import constants as const
 import configuration as config
 from pydoc import locate
 from utils import os_utils
+from utils.logger import root_logger as logger
 
 
 def gen_feed_dict(model,data_generator,subset,fix,args):
@@ -54,11 +55,15 @@ if __name__ == '__main__':
 
     train_op = optimizer.apply_gradients(grads)
 
-    trained_variables = []
+    logger.info('=========================================================')
+    for v in tf.global_variables():
+        logger.info('Global_variables' + str(v.name) + '\t' + str(v.shape))
+
+    logger.info('=========================================================')
     for v in tf.trainable_variables():
         print(v.name, '\t', v.shape)
-        trained_variables.append(str(v.name) + '\t' + str(v.shape))
-    os_utils.txt_write(os.path.join(save_model_dir, 'trained_var.txt'), trained_variables)
+        logger.info('trainable_variables' + str(v.name) + '\t' + str(v.shape))
+
 
     sess = tf.InteractiveSession()
     now = datetime.now()
@@ -115,7 +120,7 @@ if __name__ == '__main__':
                 run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
                 run_metadata = tf.RunMetadata()
 
-                feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.TRAIN, None, args);
+
                 train_loss_op,_= sess.run([train_loss,train_op],feed_dict=feed_dict)
 
                 feed_dict = gen_feed_dict(img2vec_model, img_generator, const.Subset.VAL, None, args);
@@ -133,6 +138,9 @@ if __name__ == '__main__':
                 if(step % 100 == 0):
                     ckpt_file = os.path.join(config.model_save_path, config.model_save_name)
                     saver.save(sess, ckpt_file)
+                    if (step % config.checkpoint_frequency == 0):
+                        ckpt = os.path.join(save_model_dir,str(step), config.model_save_name)
+                        saver.save(sess, ckpt)
 
 
 

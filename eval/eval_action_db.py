@@ -5,6 +5,7 @@ import utils.confusion_matrix as confusion_matrix
 import tensorflow as tf
 import os
 from nets.two_stream import TwoStreamNet
+from nets.two_loss_two_stream import TwoLossTwoStreamNet
 from nets.motion_tower import  MotionTower
 import data_sampling.honda_labels as honda_lbls
 import constants as const
@@ -87,8 +88,10 @@ if __name__ == '__main__':
 
         isTwoStream = config.use_two_stream
         if isTwoStream:
-            model = TwoStreamNet(supervised=True, train_spatial_tower=False, train_motion_tower=False,
-                                 load_alex_weights=False)
+            # model = TwoStreamNet(supervised=True, train_spatial_tower=False, train_motion_tower=False,
+            #                      load_alex_weights=False)
+            model = TwoLossTwoStreamNet(mode=tf.estimator.ModeKeys.TRAIN, load_alex_weights=False,
+                                        train_spatial_tower=False, train_motion_tower=False)
         else:
             model = MotionTower(mode=tf.estimator.ModeKeys.PREDICT)
 
@@ -97,6 +100,7 @@ if __name__ == '__main__':
         saver = tf.train.Saver()
         model_dir = '../' + config.model_save_path;
         ckpt_file = os.path.join(model_dir, config.model_save_name)
+        print(ckpt_file )
         saver.restore(sess, ckpt_file)
         print('Model loaded successfully')
         cnf_matrix = np.zeros((num_labels,num_labels),dtype=np.int32)
