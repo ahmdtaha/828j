@@ -37,6 +37,7 @@ class Temporal_Direction(Enum):
 train_iters = 2000000
 # learning_rate = 10e-4
 # learning_rate = 5e-4
-learning_rate = 1e-4
+# learning_rate = 1e-4
+learning_rate = 1e-5
 num_filters = 23
 

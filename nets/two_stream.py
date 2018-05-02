@@ -280,7 +280,7 @@ class TwoStreamNet:
         print(np.mean(word_dense),np.mean(context_dense ))
 
 
-    def __init__(self,supervised=False,train_spatial_tower=False,train_motion_tower=True,load_alex_weights=False, input_words=None, input_context=None, supervised_labels=None):
+    def __init__(self,supervised=False,train_spatial_tower=False,train_motion_tower=True,load_alex_weights=False, input_words=None, input_context=None, class_labels=None):
         net_data = np.load(open(file_const.model_weights_filepath, "rb"), encoding="latin1").item()
 
         batch_size = None
@@ -302,12 +302,15 @@ class TwoStreamNet:
 
         num_classes = file_const.num_classes
         unsupervised_num_classes = file_const.unsupervised_num_classes
-        if supervised_labels is not None:
-            self.supervised_labels = supervised_labels
+        if class_labels is not None:
+            self.supervised_labels = class_labels
         else:
             self.supervised_labels = tf.placeholder(tf.int32, shape=(batch_size, num_classes), name='class_lbls')
 
-        self.unsupervised_labels = tf.placeholder(tf.int32, shape=(batch_size, unsupervised_num_classes ), name='gt_lbls')
+        if class_labels is not None:
+            self.unsupervised_labels = class_labels
+        else:
+            self.unsupervised_labels = tf.placeholder(tf.int32, shape=(batch_size, unsupervised_num_classes ), name='gt_lbls')
 
         words = self.rgb_2_bgr(self.input_words)
         context = self.input_context

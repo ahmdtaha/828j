@@ -124,7 +124,7 @@ def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
     vid_subject1 = basename1[:-3]
     vid_subject2 = basename2[:-3]
     if vid_subject1 == vid_subject2:  # should only operate on 2 different videos
-        return [], [], [], []
+        pass
 
     vid_path1 = vid_path1.decode("utf-8")
     vid_pkl_path1 = vid_path1[:-4] + '.pkl'
@@ -137,7 +137,8 @@ def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
         frames2 = pickle.load(f)
 
     if len(frames1) < 11:  # Too short to create even one tuple!
-        return [], [], [], []
+        # return [], [], [], []
+        pass
 
     # TODO: how many tuples to sample? currently every k_sampling_step
     k_sampling_step = 2  # this is to be consistent with 3 fps downsampling
@@ -526,6 +527,8 @@ def _build_unsupervised_input_for_train(filenames_dataset, augmentation_flag,
     filenames_dataset2 = filenames_dataset.shuffle(buffer_size=1000)
     paired_dataset = tf.data.Dataset.zip((filenames_dataset,
                                           filenames_dataset2))
+    # paired_dataset = paired_dataset.filter(lambda a, b: tf.not_equal(a, b))
+
     dataset = paired_dataset.map(
         lambda filename1, filename2: tuple(tf.py_func(
             _split_into_unsupervised_train_tuples, [filename1, filename2], [

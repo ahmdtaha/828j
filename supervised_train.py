@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     load_alex_weights = True;
 
-    img2vec_model = TwoStreamNet(supervised=True,load_alex_weights=load_alex_weights,train_spatial_tower = False,train_motion_tower=True, input_words=center_frames_op, input_context=motion_encodings_op, supervised_labels=class_labels_op)
+    img2vec_model = TwoStreamNet(supervised=True,load_alex_weights=load_alex_weights,train_spatial_tower = False,train_motion_tower=True, input_words=center_frames_op, input_context=motion_encodings_op, class_labels=class_labels_op)
     model_loss = img2vec_model.supervised_loss
     model_accuracy = img2vec_model.supervised_accuracy
 
@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
     # FIXME: need to save and restore the iterator to be able to continue
     # training from previous points.
-    step = 0
+    step = last_step
     while True:  # indefinite number of epochs
         sess.run(iterator.initializer)
         # run epoch
