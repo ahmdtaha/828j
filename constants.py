@@ -12,6 +12,7 @@ frame_width = 227
 frame_channels = 3
 context_channels = 5
 
+enable_extra_augmentation = False
 
 
 from enum import Enum

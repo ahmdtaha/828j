@@ -8,36 +8,26 @@ import numpy as np
 import os.path as osp
 import pickle
 import re
+import sys
+import tensorflow as tf
 import time
 import traceback
-import tensorflow as tf
 import tuple_generator_utils as gen_utils
-import sys
 
 
 global class_names_all
 
 
-# deprecated: was used in the queue-based input pipeline
-def _decode(filename_tf, cfg):
-    input_video_path = tf.string_join([[cfg.data_path + '/'], filename_tf])
-    input_video_path = tf.reshape(input_video_path, [-1])
-    center_frames, motion_enc, class_labels, filenames_tiled = tf.py_func(
-        _split_into_supervised_train_tuples, [input_video_path[0]], [
-        tf.float32, tf.float32, tf.int32, tf.string])
-
-    return center_frames, motion_enc, class_labels, filenames_tiled
-
-
-# TODO: num_frames should be set/linked to const.context_frames + 1 to allow
-# changing it from one place
-def _split_into_supervised_train_tuples(video_path, num_frames=6):
+def _split_into_supervised_tuples(video_path, num_frames=6,
+                                  augmentation_flag=False):
     """
-    Splits a video into consecutive but non-overlapping sequences.
+    Splits a video into consecutive but non-overlapping tuples / sequences.
 
     Args:
         video_path (str): path to source video (e.g. *.avi).
-        num_frames (int): size of each sequence.
+        num_frames (int): size of each tuple / sequence.
+        augmentation_flag (bool): whether to augment tuples or not (e.g.
+            cropping, channel-splitting, ... etc)
 
     Returns:
         center_frames: list of center frames for each sampled sequence. Each
@@ -45,6 +35,7 @@ def _split_into_supervised_train_tuples(video_path, num_frames=6):
         stacks_of_diffs: list of stack_of_diffs for each sampled sequence. Each
             stack is a 3D array (height x width x num_frames-1).
     """
+
     global class_names_all
 
     video_path = video_path.decode("utf-8")
@@ -53,7 +44,7 @@ def _split_into_supervised_train_tuples(video_path, num_frames=6):
         frames = pickle.load(f)
 
     if len(frames) < 11:  # Too short to create even one tuple!
-        return [], [], [], []
+        pass
 
     # TODO: how many tuples to sample? currently every k_sampling_step
     k_sampling_step = 2  # this is to be consistent with 3 fps downsampling
@@ -76,7 +67,7 @@ def _split_into_supervised_train_tuples(video_path, num_frames=6):
         chunk_frames = list(map(lambda x: frames[x], chunks[tuple_i]))
         stacks_of_diffs[tuple_i], crop_coords = \
             gen_utils.create_stack_of_diffs_from_frames(
-            chunk_frames, augment_flag=True)  # TODO: augment only for training
+            chunk_frames, augment_flag=augmentation_flag)
         center_frames[tuple_i] = gen_utils.standardize_frame(
             frames[center_frames_indices[tuple_i]], crop_coords)
 
@@ -100,19 +91,25 @@ def _split_into_supervised_train_tuples(video_path, num_frames=6):
     return center_frames, stacks_of_diffs, class_labels_hot_vec, filenames
 
 
-# TODO: num_frames should be set/linked to const.context_frames + 1 to allow
-# changing it from one place
-def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
+def _split_into_unsupervised_tuples(vid_path1, vid_path2, num_frames=6,
+                                    augmentation_flag=False):
     """
-    Splits a video into consecutive but non-overlapping sequences.
+    Splits a video into tuples for unsupervised training (4 classes spanning
+        correct/incorrect spatial frame X correct/shuffled motion encoding).
 
     Args:
-        video_path (str): path to source video (e.g. *.avi).
-        num_frames (int): size of each sequence.
+        vid_path1 (str): path to source video (e.g. *.avi).
+        vid_path2 (str): path to a 2nd video from which to use incorrect spatial
+            frames.
+        num_frames (int): size of each tuple / sequence.
+        augmentation_flag (bool): whether to augment tuples or not (e.g.
+            cropping, channel-splitting, ... etc)
 
     Returns:
         center_frames: list of center frames for each sampled sequence. Each
-            frame is a 3D array (height x widht x 3).
+            frame is a 3D array (height x widht x 3). Each center frame can
+            be either the correct frame (from video1) corresponing to the
+            motion, or an incorrect frame (from video2).
         stacks_of_diffs: list of stack_of_diffs for each sampled sequence. Each
             stack is a 3D array (height x width x num_frames-1).
     """
@@ -123,7 +120,8 @@ def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
     basename2 = osp.basename(path_no_ext2)
     vid_subject1 = basename1[:-3]
     vid_subject2 = basename2[:-3]
-    if vid_subject1 == vid_subject2:  # should only operate on 2 different videos
+    # Should skip pair of videos that belong to the same human subject & action.
+    if vid_subject1 == vid_subject2:
         pass
 
     vid_path1 = vid_path1.decode("utf-8")
@@ -137,7 +135,6 @@ def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
         frames2 = pickle.load(f)
 
     if len(frames1) < 11:  # Too short to create even one tuple!
-        # return [], [], [], []
         pass
 
     # TODO: how many tuples to sample? currently every k_sampling_step
@@ -152,8 +149,6 @@ def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
             break
 
     center_frames_indices = list(map(lambda x: (x[-1] + x[0]) // 2, chunks))
-    # print('DBG1: ', center_frames_indices)
-    # print('DBG2: ', chunks)
     num_tuples = len(center_frames_indices)
     center_frames = [None] * num_tuples
     stacks_of_diffs = [None] * num_tuples
@@ -162,7 +157,7 @@ def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
         chunk_frames = list(map(lambda x: frames1[x], chunks[tuple_i]))
         stacks_of_diffs[tuple_i], crop_coords = \
             gen_utils.create_stack_of_diffs_from_frames(
-            chunk_frames, augment_flag=True)  # TODO: augment only for training
+            chunk_frames, augment_flag=augmentation_flag)
         lbl = np.random.randint(4)
         class_labels_hot_vec[tuple_i][lbl] = 1
         if lbl == 0:  # correct image and correct motion
@@ -192,91 +187,14 @@ def _split_into_unsupervised_train_tuples(vid_path1, vid_path2, num_frames=6):
     return center_frames, stacks_of_diffs, class_labels_hot_vec, filenames
 
 
-# # This is the old split code for the queue-base input pipeline
-# def _split_into_supervised_train_tuples(video_path, num_frames=6, step=15,
-#                                         sampling_step=2):
-#     """
-#     Splits a video into consecutive but non-overlapping sequences.
-# 
-#     Args:
-#         video_path (str): path to source video (e.g. *.avi).
-#         num_frames (int): size of each sequence.
-#         step (int): "Default" step between frames within a sampled sequence. It
-#             can be readjusted for short videos.
-# 
-#     Returns:
-#         center_framess: list of center frames for each sampled sequence. Each
-#             frame is a 3D array (height x widht x 3).
-#         stacks_of_diffs: list of stack_of_diffs for each sampled sequence. Each
-#             stack is a 3D array (height x width x num_frames-1).
-#     """
-#     global class_names_all
-# 
-#     try:
-#         video = imageio.get_reader(video_path, 'ffmpeg')
-#     except:
-#         traceback.print_exc()
-#         sys.stderr.write('Error: failed to read video %s\n' % video_path)
-#         print('Error: failed to read video %s\n' % video_path)
-#         return
-# 
-#     total_num_frames = video._meta['nframes']
-#     # FIXME: if you want to exclude short videos, remove them as preprocessing!
-#     # if total_num_frames <= 60:
-#     #     sys.stderr.write('Video %s is too small\n' % video_path)
-#     #     print('Video %s is too small\n' % video_path)
-#     #     return [], [], [], []
-#     if total_num_frames <= 60:
-#         step = total_num_frames // (num_frames - 1)
-#     elif total_num_frames <= 75:  # then re-adjust step
-#         if total_num_frames >= 71:
-#             step = 14
-#         elif total_num_frames >= 66:
-#             step = 13
-#         else:
-#             step = 12
-# 
-#     chunks = []
-#     for start_frame in range(0, total_num_frames, sampling_step):
-#         chunk = np.arange(
-#             start_frame, start_frame + (num_frames - 1) * step + 1, step)
-#         if chunk[-1] < total_num_frames:
-#             chunks.append(chunk)
-#             start_frame = chunk[-1] + 1
-#         else:
-#             # # if remaining frames cannot complete a chunk, then center
-#             # # previous chunks so that leftovers are equally two-sided
-#             # shift = (total_num_frames - start_frame + 1) // 2
-#             # for i in range(len(chunks)):
-#             #     chunks[i] = chunks[i] + shift
-#             break
-# 
-#     center_frames_indices = map(lambda x: (x[-1] + x[0]) // 2, chunks)
-#     center_frames, stacks_of_diffs = gen_utils.split_into_tuples(
-#         video_path, chunks, augment_tuples=True)
-# 
-#     center_frames = np.float32(center_frames)
-#     stacks_of_diffs = np.float32(stacks_of_diffs)
-#     # FIXME: next line assumes unix paths (won't work for windows). Use regex
-#     # to split on both / and \
-#     class_name = video_path.split('/')[-2]
-#     class_label = np.int32(class_names_all.index(class_name))
-#     path_no_ext, _ = osp.splitext(video_path)
-#     filenames = ['%s-frame_%d' % (path_no_ext, x) for x in
-#                  center_frames_indices]
-# 
-#     return center_frames, stacks_of_diffs, [class_label] * len(chunks), \
-#         filenames
-
-
 def _is_valid_perm(arr):
     """
     Checks if arr represents a valid permutation to produce a negative motion
-    typle.
-    A valid permutation is one that is not in ascending or descending order.
+    tuple. A valid permutation is one that is NOT in ascending or descending
+    order.
 
     Args:
-        arr: 1D array of a permuted sequence of numbers.
+        arr: 1D array of a permuted sequence of integers.
 
     Returns:
         True or False indicating whether the input is a valid negative tuple
@@ -293,7 +211,7 @@ def _is_valid_perm(arr):
 
 def _shufle_motion(motion_enc):
     """
-    shuffles encoded frames (e.g. stack_of_diffs) to produce a negative tuple.
+    Shuffles encoded frames (e.g. stack_of_diffs) to produce a negative tuple.
     It ensures that the suffled motion is not in ascending nor descending order.
 
     Args:
@@ -304,8 +222,6 @@ def _shufle_motion(motion_enc):
         shuffled_motion_enc: 3D array of the same dimensions but after shuffling
             the last dimension.
             frame is a 3D array (height x widht x 3).
-        stacks_of_diffs: list of stack_of_diffs for each sampled sequence. Each
-            stack is a 3D array (height x width x num_frames-1).
     """
 
     num_channels = motion_enc.shape[2]
@@ -317,8 +233,16 @@ def _shufle_motion(motion_enc):
 
 
 # Data augmentation
-def augment_data(inp_imgs_tf, motion_encs_tf, img_height, img_width,
-                 num_motion_channels):
+def augment_data(inp_imgs_tf, motion_encs_tf):
+    """
+    Performs more data augmentation like horizonatal and vertical flipping,
+    rotation, chromatic distrotions.
+
+    Args:
+        inp_imgs_tf: either a single image tensor or a mini-batch of images.
+        motion_encs_tf: either a single motion encoding (e.g. stack-of-diff) or
+            a mini-batch of motion encodings.
+    """
 
     # Flip horizontally
     hor_flip_bool = tf.less(tf.random_uniform(shape=[], minval=0, maxval=1.),
@@ -336,18 +260,6 @@ def augment_data(inp_imgs_tf, motion_encs_tf, img_height, img_width,
         ver_flip_bool, lambda: (tf.image.flip_up_down(inp_imgs_tf),
                                 tf.image.flip_up_down(motion_encs_tf)),
                        lambda: (inp_imgs_tf, motion_encs_tf))
-
-    # dummy reshape operation because tf.contrib.image.transform operation
-    # needs to know the tensorshape beforehand!
-    # FIXME: I suspect this dummy reshape causes vertical flipping, possibly
-    # because height = width = 227? That or either some input videos are
-    # vertically flipped
-    # inp_imgs_tf = tf.reshape(inp_imgs_tf, [-1, img_height, img_width, 3])
-    # motion_encs_tf = tf.reshape(motion_encs_tf, [-1, img_height, img_width, 
-    #                                              num_motion_channels])
-    # inp_imgs_tf = tf.reshape(inp_imgs_tf, [img_height, img_width, 3])
-    # motion_encs_tf = tf.reshape(motion_encs_tf, [img_height, img_width, 
-    #                                              num_motion_channels])
 
     # Random rotation
     rotate_flag = tf.less(tf.random_uniform(shape=[], minval=0, maxval=1.), 0.7)
@@ -368,28 +280,28 @@ def augment_data(inp_imgs_tf, motion_encs_tf, img_height, img_width,
     # Chromatic chages
 
     # Color distortions are non-commutative, and so the order matters
-    def order_1(img):
+    def _order_1(img):
         img = tf.image.random_brightness(img, max_delta=32./255.)
         img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
         img = tf.image.random_hue(img, max_delta=0.2)
         img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
         return img
 
-    def order_2(img):
+    def _order_2(img):
         img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
         img = tf.image.random_brightness(img, max_delta=32./255.)
         img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
         img = tf.image.random_hue(img, max_delta=0.2)
         return img
 
-    def order_3(img):
+    def _order_3(img):
         img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
         img = tf.image.random_hue(img, max_delta=0.2)
         img = tf.image.random_brightness(img, max_delta=32./255.)
         img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
         return img
 
-    def order_4(img):
+    def _order_4(img):
         img = tf.image.random_hue(img, max_delta=0.2)
         img = tf.image.random_saturation(img, lower=0.5, upper=1.5)
         img = tf.image.random_contrast(img, lower=0.5, upper=1.5)
@@ -401,188 +313,186 @@ def augment_data(inp_imgs_tf, motion_encs_tf, img_height, img_width,
 
     inp_imgs_tf = tf.case(
         {tf.less(order_rand, 1):
-            # lambda: tf.map_fn(lambda image: order_1(image), inp_imgs_tf),
-            lambda: order_1(inp_imgs_tf),
+            lambda: _order_1(inp_imgs_tf),
          tf.less(order_rand, 2):
-            # lambda: tf.map_fn(lambda image: order_2(image), inp_imgs_tf),
-            lambda: order_2(inp_imgs_tf),
+            lambda: _order_2(inp_imgs_tf),
          tf.less(order_rand, 3):
-            # lambda: tf.map_fn(lambda image: order_3(image), inp_imgs_tf),
-            lambda: order_3(inp_imgs_tf),
+            lambda: _order_3(inp_imgs_tf),
          tf.less(order_rand, 4):
-            # lambda: tf.map_fn(lambda image: order_4(image), inp_imgs_tf)
-            lambda: order_3(inp_imgs_tf)
+            lambda: _order_4(inp_imgs_tf)
         },
-        # default=lambda: tf.map_fn(lambda image: order_4(image), inp_imgs_tf))
         # default=lambda: order_4(inp_imgs_tf))
         default=lambda: inp_imgs_tf)
 
     return inp_imgs_tf, motion_encs_tf
 
 
-def _build_supervised_input_for_train(filenames_dataset, augmentation_flag,
-                                      buffer_size, batch_size, cfg):
+def _build_input_aux(ragged_tuples_dataset, augmentation_flag, buffer_size,
+                     batch_size, cfg):
+    """
+    Continues building supervised/unsupervised training tuples by taking in
+    a dataset where each entry represents generated tuples from a single video,
+    and then it flattens the dataset so that each entry is just one tuple,
+    shuffles the tuples, sets the shapes of the tensors of each tuple,
+    applies data-augmentation, and creates mini-batches.
+
+    Args:
+        ragged_tuples_dataset (tf.data.Dataset): a dataset where each entry
+            represents generated tuples from a single video (videos of different
+            lengths have different number of generated tuples)
+        augmentation_flag (bool): whether to augment tuples or not (e.g.
+            cropping, channel-splitting, ... etc)
+        buffer_size: number of input tuples to buffer / pre-fetch for
+            tf.data.Dataset shuffling for creating mini-batches.
+        batch_size: size for mini-batch.
+        cfg: dictionary representating input configurations such as frames'
+            height and width, number of context channels, ... etc.
+
+    Returns:
+        dataset (tf.data.Dataset): tf dataset of tuples, each tuple consists of
+            a center frame, motion-encoding (such as stack-of-difference),
+            class-label, and file-name from which this tuple was generated.
+    """
+
     frame_height = cfg['frame_height']
     frame_width = cfg['frame_width']
+    context_channels = cfg['context_channels']
+
+    # flattens the multiple tuples from all videos into a single list of tuples.
+    dataset = ragged_tuples_dataset.flat_map(
+        lambda center_frames, stacks_of_diffs, class_labels, filenames:
+            tf.data.Dataset.from_tensor_slices((
+                center_frames, stacks_of_diffs, class_labels, filenames)))
+
+    # Set tensor shapes to make thmem known for two_stream.py assertions
+    def _set_shape_mapper(center_frame, stack_of_diffs, class_label, filename):
+        center_frame.set_shape([frame_height, frame_width, 3])
+        stack_of_diffs.set_shape([frame_height, frame_width, context_channels])
+        return center_frame, stack_of_diffs, class_label, filename
+
+    dataset = dataset.map(_set_shape_mapper)
+
+    # Shuffle training examples and create mini-batch
+    dataset = dataset.shuffle(buffer_size=buffer_size)
+    dataset = dataset.batch(batch_size)
+
+    # FIXME: apply augmentation per image, not per mini-batch, unit-test that.
+    # Data augmentation
+    def augment_wrapper(center_frames, stacks_of_diffs, class_labels,
+                        filenames):
+        center_frames, stacks_of_diffs = augment_data(
+            center_frames, stacks_of_diffs)
+        return center_frames, stacks_of_diffs, class_labels, filenames
+
+    # FIXME: re-enable the extra augmentation!!
+    if augmentation_flag and const.enable_extra_augmentation:
+        dataset = dataset.map(augment_wrapper)
+
+    # # Shuffle training examples and create mini-batch
+    # dataset = dataset.shuffle(buffer_size=buffer_size)
+    # dataset = dataset.batch(batch_size)
+
+    return dataset
+
+
+def _build_supervised_input(filenames_dataset, augmentation_flag,
+                                      buffer_size, batch_size, cfg):
+    """
+    Builds supervised input tuples for the TwoStream network.
+
+    Args:
+        filenames_dataset (tf.data.Dataset): dataset of input file paths, each
+            entry represents a path to an input video (or its pickled
+            representation).
+        augmentation_flag (bool): whether to augment tuples or not (e.g.
+            cropping, channel-splitting, ... etc)
+        buffer_size: number of input tuples to buffer / pre-fetch for
+            tf.data.Dataset shuffling for creating mini-batches.
+        batch_size: size for mini-batch.
+        cfg: dictionary representating input configurations such as frames'
+            height and width, number of context channels, ... etc.
+
+    Returns:
+        dataset (tf.data.Dataset): tf dataset of tuples, each tuple consists of
+            a center frame, motion-encoding (such as stack-of-difference),
+            class-label, and file-name from which this tuple was generated.
+    """
+
     context_channels = cfg['context_channels']
 
     # generates multiple tuples from each input video file
     dataset = filenames_dataset.map(
         lambda filename: tuple(tf.py_func(
-            _split_into_supervised_train_tuples, [filename], [
+            _split_into_supervised_tuples, [
+            filename, context_channels+1, augmentation_flag], [
             tf.float32, tf.float32, tf.int32, tf.string])))
 
-    # flattens the multiple tuples from all videos into a single list of tuples.
-    dataset = dataset.flat_map(
-        lambda center_frames, stacks_of_diffs, class_labels, filenames:
-            tf.data.Dataset.from_tensor_slices((
-                center_frames, stacks_of_diffs, class_labels, filenames)))
-
-    # TODO: I'm pretty sure you can define the shapes when creating the tensors
-    # instead of this dummy reshape! So, implement this change, please!
-    def _dummy_reshape_map(center_frame, stack_of_diffs, class_label, filename):
-        # center_frame = tf.reshape(center_frame, [frame_height, frame_width, 3])
-        # stack_of_diffs = tf.reshape(stack_of_diffs, [frame_height, frame_width,
-        #                                              context_channels])
-        center_frame.set_shape([frame_height, frame_width, 3])
-        stack_of_diffs.set_shape([frame_height, frame_width, context_channels])
-        return center_frame, stack_of_diffs, class_label, filename
-
-    # dummy reshape to make tensor shapes known for two_stream.py assertions
-    dataset = dataset.map(_dummy_reshape_map)
-
-    # Shuffle training examples and create mini-batch
-    dataset = dataset.shuffle(buffer_size=buffer_size)
-    dataset = dataset.batch(batch_size)
-
-    # Data augmentation
-    def augment_wrapper(center_frames, stacks_of_diffs, class_labels,
-                        filenames):
-        center_frames, stacks_of_diffs = augment_data(
-            center_frames, stacks_of_diffs, frame_height,
-            frame_width, context_channels)
-        return center_frames, stacks_of_diffs, class_labels, filenames
-
-    # FIXME: apply augmentation per image, not per mini-batch, unit-test that.
-    if augmentation_flag:
-        dataset = dataset.map(augment_wrapper)
-
-    # FIXME: the problem with image-based augmentation is a lot slower
-    # # Shuffle training examples and create mini-batch
-    # dataset = dataset.shuffle(buffer_size=buffer_size)
-    # dataset = dataset.batch(batch_size)
-
-    return dataset
+    return _build_input_aux(dataset, augmentation_flag, buffer_size, batch_size,
+                            cfg)
 
 
-# Deprecated
-# still "sometimes" crashes. seems like still a problem with reading
-# videos, but i'm not 100% sure yet. Maybe also it is because of the extra
-# augmentations, as it "seems" to work fine if augmentation is disabled.
-def _build_supervised_input_for_train_queues(filenames_tf, cfg, num_threads):
-    center_frames, motion_encodings, class_labels, filenames_tf_tiled = _decode(
-        filenames_tf, cfg)
-    # TODO: make sure to cast read data to the correct dtype
-
-    # Data augmentation
-    if cfg.augmentation_flag:
-        center_frames, motion_encodings = augment_data(
-            center_frames, motion_encodings, cfg.img_height, cfg.img_width,
-            cfg.context_channels)
-        # None
-
-    # TODO: check if values for the capacity and min_after_dequeue are not bad
-    example_queue = tf.RandomShuffleQueue(
-        capacity=4*cfg.batch_size, min_after_dequeue=2*cfg.batch_size,
-        dtypes=[tf.float32, tf.float32, tf.int32, tf.string],
-        shapes=[[cfg.img_height, cfg.img_width, cfg.img_channels],
-                [cfg.img_height, cfg.img_width, cfg.context_channels], [], []])
-
-    # print('DBG1: ', center_frames.get_shape())
-    # print('DBG2: ', motion_encodings.get_shape())
-    example_enqueue_op = example_queue.enqueue_many(
-        [center_frames, motion_encodings, class_labels, filenames_tf_tiled])
-
-    tf.train.add_queue_runner(tf.train.queue_runner.QueueRunner(
-        example_queue, [example_enqueue_op] * num_threads))
-
-    # Read batch
-    center_frame, motion_encoding, class_label, tuple_name = \
-        example_queue.dequeue_many(cfg.batch_size)
-
-    return center_frame, motion_encoding, class_label, tuple_name
-
-
-def _build_supervised_input_for_test():
-    return None, None, None, None
-
-
-def _build_unsupervised_input_for_train(filenames_dataset, augmentation_flag,
+def _build_unsupervised_input(filenames_dataset, augmentation_flag,
                                         buffer_size, batch_size, cfg):
-    frame_height = cfg['frame_height']
-    frame_width = cfg['frame_width']
+    """
+    Builds unsupervised input tuples for the TwoStream network.
+
+    Args:
+        filenames_dataset (tf.data.Dataset): dataset of input file paths, each
+            entry represents a path to an input video (or its pickled
+            representation).
+        augmentation_flag (bool): whether to augment tuples or not (e.g.
+            cropping, channel-splitting, ... etc)
+        buffer_size: number of input tuples to buffer / pre-fetch for
+            tf.data.Dataset shuffling for creating mini-batches.
+        batch_size: size for mini-batch.
+        cfg: dictionary representating input configurations such as frames'
+            height and width, number of context channels, ... etc.
+
+    Returns:
+        dataset (tf.data.Dataset): tf dataset of tuples, each tuple consists of
+            a center frame, motion-encoding (such as stack-of-difference),
+            class-label, and file-name from which this tuple was generated.
+    """
+
     context_channels = cfg['context_channels']
 
-    # generates multiple tuples from each input video file
     filenames_dataset2 = filenames_dataset.shuffle(buffer_size=1000)
     paired_dataset = tf.data.Dataset.zip((filenames_dataset,
                                           filenames_dataset2))
     # paired_dataset = paired_dataset.filter(lambda a, b: tf.not_equal(a, b))
 
+    # generates multiple tuples from each input video file
     dataset = paired_dataset.map(
         lambda filename1, filename2: tuple(tf.py_func(
-            _split_into_unsupervised_train_tuples, [filename1, filename2], [
+            _split_into_unsupervised_tuples, [
+            filename1, filename2, context_channels+1, augmentation_flag], [
             tf.float32, tf.float32, tf.int32, tf.string])))
 
-    # flattens the multiple tuples from all videos into a single list of tuples.
-    dataset = dataset.flat_map(
-        lambda center_frames, stacks_of_diffs, class_labels, filenames:
-            tf.data.Dataset.from_tensor_slices((
-                center_frames, stacks_of_diffs, class_labels, filenames)))
-
-    # TODO: I'm pretty sure you can define the shapes when creating the tensors
-    # instead of this dummy reshape! So, implement this change, please!
-    def _dummy_reshape_map(center_frame, stack_of_diffs, class_label, filename):
-        # center_frame = tf.reshape(center_frame, [frame_height, frame_width, 3])
-        # stack_of_diffs = tf.reshape(stack_of_diffs, [frame_height, frame_width,
-        #                                              context_channels])
-        center_frame.set_shape([frame_height, frame_width, 3])
-        stack_of_diffs.set_shape([frame_height, frame_width, context_channels])
-        return center_frame, stack_of_diffs, class_label, filename
-
-    # dummy reshape to make tensor shapes known for two_stream.py assertions
-    dataset = dataset.map(_dummy_reshape_map)
-
-    # Shuffle training examples and create mini-batch
-    dataset = dataset.shuffle(buffer_size=buffer_size)
-    dataset = dataset.batch(batch_size)
-
-    # Data augmentation
-    def augment_wrapper(center_frames, stacks_of_diffs, class_labels,
-                        filenames):
-        center_frames, stacks_of_diffs = augment_data(
-            center_frames, stacks_of_diffs, frame_height,
-            frame_width, context_channels)
-        return center_frames, stacks_of_diffs, class_labels, filenames
-
-    # FIXME: apply augmentation per image, not per mini-batch, unit-test that.
-    if augmentation_flag:
-        dataset = dataset.map(augment_wrapper)
-
-    # FIXME: the problem with image-based augmentation is a lot slower
-    # # Shuffle training examples and create mini-batch
-    # dataset = dataset.shuffle(buffer_size=buffer_size)
-    # dataset = dataset.batch(batch_size)
-
-    return dataset
-
-
-def _build_unsupervised_input_for_test():
-    return None, None, None, None
+    return _build_input_aux(dataset, augmentation_flag, buffer_size, batch_size,
+                            cfg)
 
 
 def build_input(data_path, input_list_filepaths, activities_list_path,
                 batch_size, supervision_mode, run_mode):
+    """
+    Builds supervised/unsupervised input tuples for the TwoStream network.
+
+    Args:
+        data_path: base-directory containing the dataset.
+        input_list_filepaths: list of text files, each listing a set of input
+            video files to be used for generating input tuples.
+        activities_list_path: path to a text file listing all action-classes, so
+            that we can map the class-name to an integer between 0 and
+            num-classes - 1.
+        batch_size: size for mini-batch.
+        supervision_mode (string): either 'supervised' or 'unsupervised'
+        run_mode (string): either 'train', 'test' or 'val'
+
+    Returns:
+        dataset (tf.data.Dataset): tf dataset of tuples, each tuple consists of
+            a center frame, motion-encoding (such as stack-of-difference),
+            class-label, and file-name from which this tuple was generated.
+    """
 
     global class_names_all
 
@@ -590,7 +500,7 @@ def build_input(data_path, input_list_filepaths, activities_list_path,
     cfg['frame_height'] = const.frame_height
     cfg['frame_width'] = const.frame_width
     cfg['context_channels'] = const.context_channels
-    buffer_size = const.buffer_size  # TODO: rethink size (currently 5000)
+    buffer_size = const.buffer_size  # TODO: rethink good value for buffer size
 
     with open(activities_list_path, 'r') as f:
         class_names_all = [x.strip() for x in f.readlines()]
@@ -605,20 +515,20 @@ def build_input(data_path, input_list_filepaths, activities_list_path,
 
     if supervision_mode == 'supervised':
         if run_mode == 'train':
-            dataset = _build_supervised_input_for_train(
-                dataset, True, buffer_size, batch_size, cfg)
-        elif run_mode == 'test':
-            # dataset = _build_supervised_input_for_test()
-            raise NotImplementedError  # TODO
+            dataset = _build_supervised_input(dataset, True, buffer_size,
+                                              batch_size, cfg)
+        elif run_mode == 'test' or run_mode == 'val':
+            dataset = _build_supervised_input(dataset, False, buffer_size,
+                                              batch_size, cfg)
         else:
             raise ValueError('Unknow run_mode: %s' % run_mode)
     elif supervision_mode == 'unsupervised':
         if run_mode == 'train':
-            dataset = _build_unsupervised_input_for_train(
-                dataset, True, buffer_size, batch_size, cfg)
-        elif run_mode == 'test':
-            # dataset = _build_unsupervised_input_for_test()
-            raise NotImplementedError  # TODO
+            dataset = _build_unsupervised_input(dataset, True, buffer_size,
+                                                batch_size, cfg)
+        elif run_mode == 'test' or run_mode == 'val':
+            dataset = _build_unsupervised_input(dataset, False, buffer_size,
+                                                batch_size, cfg)
         else:
             raise ValueError('Unknow run_mode: %s' % run_mode)
     else:
