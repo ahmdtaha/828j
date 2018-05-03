@@ -1,17 +1,11 @@
-import argparse
 import configuration as file_const
 import constants as const
-import cv2
-import imageio
 import math
 import numpy as np
 import os.path as osp
 import pickle
 import re
-import sys
 import tensorflow as tf
-import time
-import traceback
 import tuple_generator_utils as gen_utils
 
 
@@ -99,8 +93,8 @@ def _split_into_unsupervised_tuples(vid_path1, vid_path2, num_frames=6,
 
     Args:
         vid_path1 (str): path to source video (e.g. *.avi).
-        vid_path2 (str): path to a 2nd video from which to use incorrect spatial
-            frames.
+        vid_path2 (str): path to a 2nd video from which to use incorrect
+            spatial frames.
         num_frames (int): size of each tuple / sequence.
         augmentation_flag (bool): whether to augment tuples or not (e.g.
             cropping, channel-splitting, ... etc)
@@ -120,7 +114,7 @@ def _split_into_unsupervised_tuples(vid_path1, vid_path2, num_frames=6,
     basename2 = osp.basename(path_no_ext2)
     vid_subject1 = basename1[:-3]
     vid_subject2 = basename2[:-3]
-    # Should skip pair of videos that belong to the same human subject & action.
+    # Should skip pair of videos that belong to the same human subject & action
     if vid_subject1 == vid_subject2:
         pass
 
@@ -212,15 +206,15 @@ def _is_valid_perm(arr):
 def _shufle_motion(motion_enc):
     """
     Shuffles encoded frames (e.g. stack_of_diffs) to produce a negative tuple.
-    It ensures that the suffled motion is not in ascending nor descending order.
+    It ensures that the suffled motion is not in ascending nor descending order
 
     Args:
         motion_enc (3D array): W x H x num_channles array representing the
             encoded motion (e.g. stack of difference representation)
 
     Returns:
-        shuffled_motion_enc: 3D array of the same dimensions but after shuffling
-            the last dimension.
+        shuffled_motion_enc: 3D array of the same dimensions but after
+            shuffling the last dimension.
             frame is a 3D array (height x widht x 3).
     """
 
@@ -250,7 +244,7 @@ def augment_data(inp_imgs_tf, motion_encs_tf):
     inp_imgs_tf, motion_encs_tf = tf.cond(
         hor_flip_bool, lambda: (tf.image.flip_left_right(inp_imgs_tf),
                                 tf.image.flip_left_right(motion_encs_tf)),
-                       lambda: (inp_imgs_tf, motion_encs_tf))
+        lambda: (inp_imgs_tf, motion_encs_tf))
 
     # TODO: should we do vertical flipping?
     # Flip vertically
@@ -259,10 +253,11 @@ def augment_data(inp_imgs_tf, motion_encs_tf):
     inp_imgs_tf, motion_encs_tf = tf.cond(
         ver_flip_bool, lambda: (tf.image.flip_up_down(inp_imgs_tf),
                                 tf.image.flip_up_down(motion_encs_tf)),
-                       lambda: (inp_imgs_tf, motion_encs_tf))
+        lambda: (inp_imgs_tf, motion_encs_tf))
 
     # Random rotation
-    rotate_flag = tf.less(tf.random_uniform(shape=[], minval=0, maxval=1.), 0.7)
+    rotate_flag = tf.less(tf.random_uniform(shape=[], minval=0, maxval=1.),
+                          0.7)
 
     # angle = tf.random_uniform(shape=[], maxval=2 * math.pi)
     max_angle = 30.0 * math.pi / 180
@@ -271,7 +266,7 @@ def augment_data(inp_imgs_tf, motion_encs_tf):
     inp_imgs_tf, motion_encs_tf = tf.cond(
         rotate_flag, lambda: (tf.contrib.image.rotate(inp_imgs_tf, angle),
                               tf.contrib.image.rotate(motion_encs_tf, angle)),
-                     lambda: (inp_imgs_tf, motion_encs_tf))
+        lambda: (inp_imgs_tf, motion_encs_tf))
 
     # angle = 45 * math.pi / 180
     # inp_imgs_tf = tf.contrib.image.rotate(inp_imgs_tf, angle)
@@ -320,7 +315,7 @@ def augment_data(inp_imgs_tf, motion_encs_tf):
             lambda: _order_3(inp_imgs_tf),
          tf.less(order_rand, 4):
             lambda: _order_4(inp_imgs_tf)
-        },
+         },
         # default=lambda: order_4(inp_imgs_tf))
         default=lambda: inp_imgs_tf)
 
@@ -338,8 +333,8 @@ def _build_input_aux(ragged_tuples_dataset, augmentation_flag, buffer_size,
 
     Args:
         ragged_tuples_dataset (tf.data.Dataset): a dataset where each entry
-            represents generated tuples from a single video (videos of different
-            lengths have different number of generated tuples)
+            represents generated tuples from a single video (videos of
+            different lengths have different number of generated tuples)
         augmentation_flag (bool): whether to augment tuples or not (e.g.
             cropping, channel-splitting, ... etc)
         buffer_size: number of input tuples to buffer / pre-fetch for
@@ -358,7 +353,7 @@ def _build_input_aux(ragged_tuples_dataset, augmentation_flag, buffer_size,
     frame_width = cfg['frame_width']
     context_channels = cfg['context_channels']
 
-    # flattens the multiple tuples from all videos into a single list of tuples.
+    # flattens the multiple tuples from all videos into a single list of tuples
     dataset = ragged_tuples_dataset.flat_map(
         lambda center_frames, stacks_of_diffs, class_labels, filenames:
             tf.data.Dataset.from_tensor_slices((
@@ -395,8 +390,8 @@ def _build_input_aux(ragged_tuples_dataset, augmentation_flag, buffer_size,
     return dataset
 
 
-def _build_supervised_input(filenames_dataset, augmentation_flag,
-                                      buffer_size, batch_size, cfg):
+def _build_supervised_input(filenames_dataset, augmentation_flag, buffer_size,
+                            batch_size, cfg):
     """
     Builds supervised input tuples for the TwoStream network.
 
@@ -424,15 +419,15 @@ def _build_supervised_input(filenames_dataset, augmentation_flag,
     dataset = filenames_dataset.map(
         lambda filename: tuple(tf.py_func(
             _split_into_supervised_tuples, [
-            filename, context_channels+1, augmentation_flag], [
-            tf.float32, tf.float32, tf.int32, tf.string])))
+                filename, context_channels+1, augmentation_flag], [
+                tf.float32, tf.float32, tf.int32, tf.string])))
 
-    return _build_input_aux(dataset, augmentation_flag, buffer_size, batch_size,
-                            cfg)
+    return _build_input_aux(dataset, augmentation_flag, buffer_size,
+                            batch_size, cfg)
 
 
 def _build_unsupervised_input(filenames_dataset, augmentation_flag,
-                                        buffer_size, batch_size, cfg):
+                              buffer_size, batch_size, cfg):
     """
     Builds unsupervised input tuples for the TwoStream network.
 
@@ -465,11 +460,11 @@ def _build_unsupervised_input(filenames_dataset, augmentation_flag,
     dataset = paired_dataset.map(
         lambda filename1, filename2: tuple(tf.py_func(
             _split_into_unsupervised_tuples, [
-            filename1, filename2, context_channels+1, augmentation_flag], [
-            tf.float32, tf.float32, tf.int32, tf.string])))
+                filename1, filename2, context_channels+1, augmentation_flag], [
+                tf.float32, tf.float32, tf.int32, tf.string])))
 
-    return _build_input_aux(dataset, augmentation_flag, buffer_size, batch_size,
-                            cfg)
+    return _build_input_aux(dataset, augmentation_flag, buffer_size,
+                            batch_size, cfg)
 
 
 def build_input(data_path, input_list_filepaths, activities_list_path,
@@ -481,8 +476,8 @@ def build_input(data_path, input_list_filepaths, activities_list_path,
         data_path: base-directory containing the dataset.
         input_list_filepaths: list of text files, each listing a set of input
             video files to be used for generating input tuples.
-        activities_list_path: path to a text file listing all action-classes, so
-            that we can map the class-name to an integer between 0 and
+        activities_list_path: path to a text file listing all action-classes,
+            so that we can map the class-name to an integer between 0 and
             num-classes - 1.
         batch_size: size for mini-batch.
         supervision_mode (string): either 'supervised' or 'unsupervised'
