@@ -7,7 +7,7 @@ import pickle
 import traceback
 
 
-def downsample_video(video_path, outpath, sampling_step=10):
+def downsample_video(video_path, outpath, sampling_step=5):
     try:
         video = imageio.get_reader(video_path, 'ffmpeg')
 
@@ -16,6 +16,15 @@ def downsample_video(video_path, outpath, sampling_step=10):
             1 if total_num_frames % sampling_step > 0 else 0)
         frames = [None] * num_sampled_frames
 
+        # with open(sampled_video_path, 'rb') as f:
+        #     fs = pickle.load(f)
+        # for i in range(len(fs)):
+        #     save_path = k_output_dump_path + '/%d.png' % i
+        #     frame = fs[i]
+        #     img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        #     cv2.imwrite(save_path, img)
+        #     print('saved frame %d to %s' % (frame_index, save_path))
+
         # for frame_index in range(2, total_num_frames, sampling_step):
         # for frame_index in range(0, total_num_frames - 2 * sampling_step, sampling_step):
         # for frame_index in range(0, total_num_frames - 3 * sampling_step, sampling_step):
@@ -23,22 +32,13 @@ def downsample_video(video_path, outpath, sampling_step=10):
             # print('%d / %d' % (frame_index, total_num_frames))
             frame = video.get_data(frame_index)
             frames[frame_index // sampling_step] = frame
+
+        with open(outpath, 'wb') as f:
+            pickle.dump(frames, f)
     except:
         # traceback.print_exc()
         print('Error: failed to read video %s\n' % video_path)
         return
-
-    with open(outpath, 'wb') as f:
-        pickle.dump(frames, f)
-
-    # with open(sampled_video_path, 'rb') as f:
-    #     fs = pickle.load(f)
-    # for i in range(len(fs)):
-    #     save_path = k_output_dump_path + '/%d.png' % i
-    #     frame = fs[i]
-    #     img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-    #     cv2.imwrite(save_path, img)
-    #     print('saved frame %d to %s' % (frame_index, save_path))
 
 
 if __name__ == '__main__':

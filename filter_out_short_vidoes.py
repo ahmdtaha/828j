@@ -3,12 +3,24 @@ import pickle
 
 dataset_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucf101_downsampled'
 # input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/testlist01.txt'
+
 # input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist01-no_labels.txt'
 # filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist01_filtered.txt'
+
 # input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist02-no_labels.txt'
 # filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist02_filtered.txt'
-input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist03-no_labels.txt'
-filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist03_filtered.txt'
+
+# input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist03-no_labels.txt'
+# filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist03_filtered.txt'
+
+input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/testlist01.txt'
+filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/testlist01_filtered.txt'
+
+# input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/testlist01.txt'
+# filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/testlist01_filtered.txt'
+
+# input_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/testlist01.txt'
+# filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/testlist01_filtered.txt'
 
 filtered_count = 0
 none_count = 0
@@ -48,7 +60,7 @@ print('Final number of tuples = %d' % total_tuples)
 
 # dataset_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucf101_downsampled'
 # filtered_list_path = '/fs/vulcan-scratch/mmeshry/self_supervised_video_learning/datasets/ucfTrainTestlist/trainlist01_filtered.txt'
-# 
+#
 # # list subsampled videos with None entries => [UPDATE]: there were 4 videos, which I removed for now.
 # for line in open(filtered_list_path, 'r'):
 #     video_name = line.strip()

@@ -12,7 +12,7 @@ import utils
 
 def train_two_stream(dataset_path, input_train_list_files,
                      input_val_list_files, activities_path, batch_size,
-                     supervision_mode):
+                     supervision_mode, model_save_path, tensorboard_save_path):
 
     train_set = tuple_gen.build_input(dataset_path, input_train_list_files,
                                       activities_path, batch_size,
@@ -21,15 +21,14 @@ def train_two_stream(dataset_path, input_train_list_files,
                                     activities_path, batch_size,
                                     supervision_mode, 'val')
 
-    train_iter = train_set.make_initializable_iterator()
+    iter_handle = tf.placeholder(tf.string, shape=[])
+    iterator = tf.data.Iterator.from_string_handle(
+        iter_handle, train_set.output_types, train_set.output_shapes)
     center_frames_op, motion_encodings_op, class_labels_op, filenames_op = \
-        train_iter.get_next()
+        iterator.get_next()
 
+    train_iter = train_set.make_initializable_iterator()
     val_iter = val_set.make_initializable_iterator()
-    val_center_frames_op, val_motion_encodings_op, val_class_labels_op, _ = \
-        val_iter.get_next()
-
-    save_model_dir = file_const.model_save_path
 
     load_alex_weights = True
 
@@ -66,11 +65,18 @@ def train_two_stream(dataset_path, input_train_list_files,
 
     # sess = tf.InteractiveSession()
     sess = tf.Session()
+
+    # The `Iterator.string_handle()` method returns a tensor that can be
+    # evaluated and used to feed the `iter_handle` placeholder.
+    train_handle = sess.run(train_iter.string_handle())
+    val_handle = sess.run(val_iter.string_handle())
+
     now = datetime.now()
-    if file_const.tensorbaord_file is None:
-        tb_path = file_const.tensorbaord_dir + now.strftime("%Y%m%d-%H%M%S")
+    if tensorboard_save_path is None:
+        # FIXME: severity minor: change tb_path to basedir/tb/now_time
+        tb_path = model_save_path + now.strftime("%Y%m%d-%H%M%S")
     else:
-        tb_path = file_const.tensorbaord_dir + file_const.tensorbaord_file
+        tb_path = tensorboard_save_path
 
     print(tb_path)
     if os.path.exists(tb_path):
@@ -93,9 +99,9 @@ def train_two_stream(dataset_path, input_train_list_files,
     init_op = tf.global_variables_initializer()
     sess.run(init_op)
 
-    ckpt_file = os.path.join(save_model_dir, file_const.model_save_name)
+    ckpt_file = os.path.join(model_save_path, file_const.model_save_name)
     print('Model Path ', ckpt_file)
-    if os.path.exists(save_model_dir) and len(os.listdir(save_model_dir)) > 1:
+    if os.path.exists(model_save_path) and len(os.listdir(model_save_path)) > 1:
         # Try to restore everything if possible
         if supervision_mode == 'unsupervised':
             saver.restore(sess, ckpt_file)
@@ -133,44 +139,54 @@ def train_two_stream(dataset_path, input_train_list_files,
         # run epoch
         while True:
             try:
-                model_loss_value, accuracy_value, _ = sess.run([
-                    model_loss, model_accuracy, train_op])
-
-                if step % const.logging_threshold == 0:
-                    print('i= ', step, ' Loss= ', model_loss_value,
-                          ', Acc= %2f' % accuracy_value, ' Epoch = %2f' % ((
-                           step * const.batch_size) / (file_const.epoch_size)))
-                    if(step != 0):
-                        # run_options = tf.RunOptions(
-                        #     trace_level=tf.RunOptions.FULL_TRACE)
-                        tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                        run_metadata = tf.RunMetadata()
-
-                        # train_loss_op, _ = sess.run([train_loss, train_op])
-                        train_loss_op = sess.run(train_loss)
-
-                        # TODO: add validation here!
-                        # feed_dict = gen_feed_dict(
-                        #     img2vec_model, img_generator, const.Subset.VAL,
-                        #     None, args)
-                        # val_loss_op,accuracy_op= sess.run(
-                        #     [val_loss,model_acc_op], feed_dict=feed_dict)
-
-                        train_writer.add_run_metadata(run_metadata,
-                                                      'step%03d' % step)
-
-                        train_writer.add_summary(train_loss_op, step)
-                        # train_writer.add_summary(val_loss_op, step)
-
-                        # train_writer.add_summary(accuracy_op, step)
-                        train_writer.flush()
-
-                        if(step % 100 == 0):
-                            saver.save(sess, ckpt_file)
-                step = step + 1
+                model_loss_value, accuracy_value, _ = sess.run(
+                    [model_loss, model_accuracy, train_op],
+                    feed_dict={iter_handle: train_handle})
             except tf.errors.OutOfRangeError:
                 epochs += 1
                 break
+
+            if step % const.logging_threshold == 0:
+                print('i= ', step, ' Loss= ', model_loss_value,
+                      ', Acc= %2f' % accuracy_value, ' Epoch = %2f' % ((
+                       step * const.batch_size) / (file_const.epoch_size)))
+                if(step != 0):
+                    # run_options = tf.RunOptions(
+                    #     trace_level=tf.RunOptions.FULL_TRACE)
+                    tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                    run_metadata = tf.RunMetadata()
+
+                    try:
+                        # train_loss_op, _ = sess.run([train_loss, train_op])
+                        train_loss_op = sess.run(
+                            train_loss, feed_dict={iter_handle: train_handle})
+                    except tf.errors.OutOfRangeError:
+                        epochs += 1
+                        break
+
+                    try:
+                        val_loss_op, accuracy_op= sess.run(
+                            [val_loss,model_acc_op],
+                            feed_dict={iter_handle: val_handle})
+                    except tf.errors.OutOfRangeError:
+                        sess.run(val_iter.initializer)
+                        val_loss_op, accuracy_op= sess.run(
+                            [val_loss,model_acc_op],
+                            feed_dict={iter_handle: val_handle})
+
+                    train_writer.add_run_metadata(run_metadata,
+                                                  'step%03d' % step)
+
+                    train_writer.add_summary(train_loss_op, step)
+                    train_writer.add_summary(val_loss_op, step)
+
+                    train_writer.add_summary(accuracy_op, step)
+                    train_writer.flush()
+
+                    if(step % 100 == 0):
+                        saver.save(sess, ckpt_file)
+
+            step = step + 1
 
     sess.close()
 
@@ -187,9 +203,14 @@ if __name__ == '__main__':
                         'class labels (i.e activities)')
     parser.add_argument('--supervision_mode',
                         help='Either {supervised, unsupervised}')
+    parser.add_argument('--model_save_path',
+                        help='Path to save/load tensorflow model')
+    parser.add_argument('--tensorboard_save_path', help='Path to a directory to'
+                        'save tensorboard summaries')
 
     flags = parser.parse_args()
 
     train_two_stream(flags.dataset_path, flags.input_train_list_files,
                      flags.input_val_list_files, flags.activities_file_path,
-                     const.batch_size, flags.supervision_mode)
+                     const.batch_size, flags.supervision_mode,
+                     flags.model_save_path, flags.tensorboard_save_path)
