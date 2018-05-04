@@ -18,7 +18,8 @@ def train_two_stream(dataset_path, input_train_list_files,
                                       activities_path, batch_size,
                                       supervision_mode, 'train')
     val_set = tuple_gen.build_input(dataset_path, input_val_list_files,
-                                    activities_path, batch_size, 'val')
+                                    activities_path, batch_size,
+                                    supervision_mode, 'val')
 
     train_iter = train_set.make_initializable_iterator()
     center_frames_op, motion_encodings_op, class_labels_op, filenames_op = \

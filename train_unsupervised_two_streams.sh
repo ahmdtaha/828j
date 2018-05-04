@@ -7,7 +7,7 @@ input_train_list_filepaths=$split1_train_file
 input_val_list_filepaths=$split1_train_file  # TODO: change to validation set
 # input_list_filepaths="$split1_train_file $split1_train_file $split3_train_file"
 activities_path="$base_dir/datasets/ucfTrainTestlist/activities"
-supervision_mode="supervised"
+supervision_mode="unsupervised"
 # run_mode="train"
 
 python train_two_streams.py \
