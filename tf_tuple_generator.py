@@ -32,6 +32,8 @@ def _split_into_supervised_tuples(video_path, num_frames=6,
 
     global class_names_all
 
+
+    ## dataset_path
     video_path = video_path.decode("utf-8")
     video_pkl_path = video_path[:-4] + '.pkl'
     with open(video_pkl_path, 'rb') as f:

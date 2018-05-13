@@ -1,5 +1,5 @@
 batch_size = 128
-buffer_size = batch_size * 10  # buffered training tuples for the input pipeline
+buffer_size = batch_size * 5  # buffered training tuples for the input pipeline
 logging_threshold = 10
 
 

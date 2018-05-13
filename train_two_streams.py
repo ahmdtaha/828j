@@ -14,12 +14,16 @@ def train_two_stream(dataset_path, input_train_list_files,
                      input_val_list_files, activities_path, batch_size,
                      supervision_mode, model_save_path, tensorboard_save_path):
 
+    print(dataset_path)
+    print(input_train_list_files)
+    print(activities_path)
     train_set = tuple_gen.build_input(dataset_path, input_train_list_files,
                                       activities_path, batch_size,
                                       supervision_mode, 'train')
     val_set = tuple_gen.build_input(dataset_path, input_val_list_files,
                                     activities_path, batch_size,
                                     supervision_mode, 'val')
+
 
     iter_handle = tf.placeholder(tf.string, shape=[])
     iterator = tf.data.Iterator.from_string_handle(
